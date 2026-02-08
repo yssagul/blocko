@@ -3,14 +3,10 @@
 Open Grid vs Standard mode balance comparison.
 """
 
-import sys
 import time
-sys.path.insert(0, '/Users/nathaniel/Documents/Blocko/Code')
 
-from block_game_simulation import (
-    RandomStrategy, StrategicAIStrategy, AntiRandomStrategy,
-    run_monte_carlo, print_results,
-)
+from blocko.strategies import RandomStrategy, StrategicAIStrategy, AntiRandomStrategy
+from blocko.simulation import run_monte_carlo, print_results
 
 
 def run_benchmark(label, white_strat, black_strat, n_games, open_grid):
@@ -43,7 +39,7 @@ if __name__ == "__main__":
     # Check timing first
     print("\nTiming a single StrategicAI open grid game...", flush=True)
     t0 = time.time()
-    from block_game_simulation import play_game
+    from blocko.simulation import play_game
     rec = play_game(strategic, strategic, open_grid=True)
     t1 = time.time()
     print(f"  Single game: {(t1-t0)*1000:.0f}ms  Score: {rec.white_score}-{rec.black_score}", flush=True)

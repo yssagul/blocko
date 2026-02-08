@@ -8,10 +8,8 @@ import os
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file
-from block_game_simulation import (
-    GameState, OpenGridGameState, Player, Color, Block, PlacedBlock,
-    StrategicAIStrategy,
-)
+from blocko.core import GameState, OpenGridGameState, Player, Color, Block, PlacedBlock
+from blocko.strategies import StrategicAIStrategy
 
 HERE = Path(os.path.dirname(os.path.abspath(__file__)))
 

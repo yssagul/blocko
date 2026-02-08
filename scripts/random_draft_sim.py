@@ -7,19 +7,14 @@ is returned and another is drawn until a playable block is found.
 The strategy only controls WHERE to place the forced block, not WHICH block.
 """
 
-import sys
 import time
 import random
 import numpy as np
 from collections import defaultdict
 
-sys.path.insert(0, '/Users/nathaniel/Documents/Blocko/Code')
-
-from block_game_simulation import (
-    GameState, OpenGridGameState, Player, Color, Block, PlacedBlock,
-    Strategy, StrategicAIStrategy, AntiRandomStrategy, RandomStrategy,
-    GameRecord, print_results,
-)
+from blocko.core import GameState, OpenGridGameState, Player, Color, Block, PlacedBlock
+from blocko.strategies import Strategy, StrategicAIStrategy, AntiRandomStrategy, RandomStrategy
+from blocko.simulation import GameRecord, print_results
 
 
 def _block_type_key(block: Block) -> str:
@@ -298,7 +293,7 @@ if __name__ == "__main__":
 
     # Reference: normal mode (no draft) — use saved results or run small batch
     print(f"\n--- Reference: Normal mode (100 games) ---", flush=True)
-    from block_game_simulation import run_monte_carlo
+    from blocko.simulation import run_monte_carlo
     t0 = time.time()
     results_normal = run_monte_carlo(
         strategic, strategic, 100, verbose=True, open_grid=False,

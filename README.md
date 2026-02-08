@@ -29,7 +29,8 @@ pip install -e .
 ### Run a simulation
 
 ```python
-from blocko import GameState, RandomStrategy, StrategicAIStrategy, play_game
+from blocko.strategies import StrategicAIStrategy, RandomStrategy
+from blocko.simulation import play_game, run_monte_carlo
 
 record = play_game(StrategicAIStrategy(), RandomStrategy())
 print(f"White: {record.white_score}, Black: {record.black_score}")
@@ -46,17 +47,53 @@ python server.py
 ### Run meta analysis
 
 ```bash
-python scripts/run_meta_analysis.py --num-games 500
+python block_game_simulation.py
 ```
 
-## Package Structure
+Or from Python:
+
+```python
+from blocko.analysis import run_meta_analysis
+run_meta_analysis(num_games=500)
+```
+
+## Project Structure
 
 ```
-blocko/
-├── core/           # Game engine: models, state, rules
-├── strategies/     # 8 AI strategies from random to minimax
-├── simulation/     # Game runner, Monte Carlo, validation
-└── analysis/       # Statistical meta-analysis suite
+blocko/                          # Main package
+├── __init__.py
+├── core/                        # Game engine fundamentals
+│   ├── models.py                #   Color, Player, Block, PlacedBlock, exterior_faces()
+│   ├── game_state.py            #   GameState (standard 4x4x4)
+│   └── open_grid.py             #   OpenGridGameState (dynamic boundaries)
+├── strategies/                  # AI strategies
+│   ├── base.py                  #   Strategy ABC
+│   ├── random.py                #   RandomStrategy
+│   ├── greedy.py                #   GreedyStrategy
+│   ├── defensive.py             #   DefensiveStrategy
+│   ├── edge_control.py          #   EdgeControlStrategy
+│   ├── blocking.py              #   BlockOpponentStrategy
+│   ├── analytical.py            #   AntiRandomStrategy (7-component)
+│   ├── strategic.py             #   StrategicAIStrategy (12-component + minimax)
+│   └── mixed.py                 #   MixedStrategy (weighted ensemble)
+├── simulation/                  # Game runner and tools
+│   ├── game_record.py           #   GameRecord dataclass
+│   ├── runner.py                #   play_game(), run_monte_carlo(), print_results()
+│   └── validator.py             #   validate_game() — rule verification
+└── analysis/                    # Statistical analysis
+    └── meta.py                  #   6 meta-analyses + run_meta_analysis()
+
+scripts/                         # Standalone benchmark scripts
+├── random_draft_sim.py          #   Random block drafting variant
+└── open_grid_benchmark.py       #   Standard vs Open Grid comparison
+
+server.py                        # Flask backend (port 8080)
+index.html                       # Three.js 3D browser frontend
+block_game_simulation.py         # Backward-compat shim (re-exports from blocko.*)
+
+archive/                         # Historical files
+├── game_prototype_8.html        #   Earlier standalone HTML prototype
+└── game_analysis/               #   One-off analysis notebooks
 ```
 
 ## Strategies
@@ -90,11 +127,25 @@ The 12 components evaluate: net score delta, top-layer permanence, corner premiu
 
 | Script | Purpose |
 |---|---|
-| `scripts/run_meta_analysis.py` | Full 6-part statistical analysis across strategies |
 | `scripts/open_grid_benchmark.py` | Standard vs Open Grid mode balance comparison |
 | `scripts/random_draft_sim.py` | Random block drafting variant simulation |
 
-## Archive
+## Development
 
-- `archive/game_prototype_8.html` — Earlier standalone HTML game prototype
-- `archive/game_analysis/` — One-off game reconstruction and analysis scripts used to identify AI weaknesses
+```bash
+pip install -e ".[dev]"
+```
+
+### Adding a New Strategy
+
+1. Create a new file in `blocko/strategies/` (e.g., `my_strategy.py`)
+2. Subclass `Strategy` from `blocko.strategies.base` and implement `choose_move()`
+3. Add the import to `blocko/strategies/__init__.py`
+4. Test with: `play_game(MyStrategy(), RandomStrategy())`
+
+### Adding a New Game Mode
+
+1. Subclass `GameState` in `blocko/core/` (see `open_grid.py` as an example)
+2. Override the relevant methods (move generation, legality, scoring, bounds)
+3. Add `open_grid=` style parameter to `play_game()` in `blocko/simulation/runner.py`
+4. Export from `blocko/core/__init__.py`
