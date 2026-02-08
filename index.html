@@ -1,0 +1,1634 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>4x4x4 Block Stacking Game</title>
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                margin: 0;
+                overflow: hidden;
+                font-family: "Segoe UI", system-ui, sans-serif;
+                background: #0a0a1a;
+                color: #e8e8e8;
+            }
+
+            /* ── Canvas fills the window ─────────────────────────────────── */
+            #canvas-container {
+                width: 100vw;
+                height: 100vh;
+                position: absolute;
+                top: 0;
+                left: 0;
+                z-index: 0;
+            }
+
+            /* ── HUD overlay ─────────────────────────────────────────────── */
+            #hud {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                pointer-events: none;
+                z-index: 10;
+            }
+            #hud > * {
+                pointer-events: auto;
+            }
+
+            /* ── Score bar (top centre) ──────────────────────────────────── */
+            #score-bar {
+                position: absolute;
+                top: 14px;
+                left: 50%;
+                transform: translateX(-50%);
+                display: flex;
+                align-items: center;
+                gap: 24px;
+                background: rgba(20, 20, 40, 0.88);
+                backdrop-filter: blur(8px);
+                border-radius: 12px;
+                padding: 10px 28px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .score-box {
+                text-align: center;
+                min-width: 80px;
+            }
+            .score-label {
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                color: #8888aa;
+            }
+            .score-value {
+                font-size: 32px;
+                font-weight: 700;
+                transition: transform 0.2s;
+            }
+            .score-value.white-score {
+                color: #f0f0f0;
+            }
+            .score-value.black-score {
+                color: #777;
+            }
+            .score-value.bounce {
+                transform: scale(1.3);
+            }
+            #turn-indicator {
+                font-size: 12px;
+                font-weight: 600;
+                padding: 5px 14px;
+                border-radius: 16px;
+                background: rgba(30, 30, 60, 0.8);
+            }
+            #turn-indicator.your-turn {
+                color: #4ade80;
+                border: 1px solid #4ade80;
+            }
+            #turn-indicator.ai-turn {
+                color: #fbbf24;
+                border: 1px solid #fbbf24;
+            }
+            #turn-indicator.game-over-ind {
+                color: #e94560;
+                border: 1px solid #e94560;
+            }
+
+            /* ── Left panel (controls) ───────────────────────────────────── */
+            #left-panel {
+                position: absolute;
+                top: 80px;
+                left: 16px;
+                background: rgba(20, 20, 40, 0.9);
+                backdrop-filter: blur(8px);
+                border-radius: 12px;
+                padding: 16px;
+                width: 260px;
+                max-height: calc(100vh - 100px);
+                overflow-y: auto;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                transition: transform 0.3s;
+            }
+            #left-panel.collapsed {
+                transform: translateX(-276px);
+            }
+            #collapse-btn {
+                position: absolute;
+                right: -34px;
+                top: 10px;
+                background: rgba(20, 20, 40, 0.9);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 0 8px 8px 0;
+                padding: 8px 6px;
+                cursor: pointer;
+                color: #aaa;
+                font-size: 16px;
+            }
+            #collapse-btn:hover {
+                color: #fff;
+            }
+            .panel-section {
+                margin-bottom: 14px;
+                padding-bottom: 14px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            }
+            .panel-section:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
+            .section-label {
+                font-size: 11px;
+                font-weight: 600;
+                color: #8888aa;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-bottom: 8px;
+            }
+
+            /* Block cards */
+            #block-cards {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .block-card {
+                background: rgba(30, 40, 70, 0.8);
+                border: 2px solid transparent;
+                border-radius: 6px;
+                padding: 6px 10px;
+                cursor: pointer;
+                text-align: center;
+                transition:
+                    border-color 0.15s,
+                    opacity 0.15s;
+                min-width: 62px;
+            }
+            .block-card:hover:not(.disabled) {
+                border-color: #e94560;
+            }
+            .block-card.selected-card {
+                border-color: #e94560;
+                background: rgba(40, 50, 90, 0.9);
+            }
+            .block-card.disabled {
+                opacity: 0.25;
+                cursor: default;
+            }
+            .block-colors {
+                display: flex;
+                gap: 2px;
+                justify-content: center;
+                margin-bottom: 3px;
+            }
+            .block-half {
+                width: 18px;
+                height: 18px;
+                border-radius: 2px;
+            }
+            .bh-white {
+                background: #f0f0f0;
+            }
+            .bh-black {
+                background: #1a1a1a;
+                border: 1px solid #555;
+            }
+            .bh-red {
+                background: #e63946;
+            }
+            .block-count {
+                font-size: 10px;
+                color: #8888aa;
+            }
+
+            /* Orientation & flip buttons */
+            .orient-buttons {
+                display: flex;
+                gap: 4px;
+            }
+            .orient-btn,
+            #flip-btn {
+                padding: 6px 10px;
+                border: 1px solid #444;
+                border-radius: 5px;
+                background: rgba(30, 40, 70, 0.6);
+                color: #bbb;
+                cursor: pointer;
+                font-size: 12px;
+                transition: all 0.15s;
+                flex: 1;
+                text-align: center;
+            }
+            .orient-btn:hover,
+            #flip-btn:hover {
+                border-color: #888;
+                color: #fff;
+            }
+            .orient-btn.active {
+                background: #0f3460;
+                border-color: #e94560;
+                color: #fff;
+            }
+            #flip-btn.flipped {
+                background: #0f3460;
+                border-color: #e94560;
+                color: #fff;
+            }
+
+            /* Action buttons */
+            .action-row {
+                display: flex;
+                gap: 6px;
+                margin-top: 8px;
+            }
+            #confirm-btn {
+                flex: 1;
+                padding: 8px;
+                border: none;
+                border-radius: 6px;
+                background: #22c55e;
+                color: #fff;
+                font-weight: 600;
+                font-size: 13px;
+                cursor: pointer;
+            }
+            #confirm-btn:disabled {
+                background: #333;
+                color: #555;
+                cursor: default;
+            }
+            #cancel-btn {
+                padding: 8px 12px;
+                border: 1px solid #555;
+                border-radius: 6px;
+                background: transparent;
+                color: #aaa;
+                font-size: 12px;
+                cursor: pointer;
+            }
+            #cancel-btn:hover {
+                border-color: #888;
+                color: #eee;
+            }
+            #reset-btn {
+                width: 100%;
+                padding: 7px;
+                border: 1px solid #e94560;
+                border-radius: 6px;
+                background: transparent;
+                color: #e94560;
+                font-size: 12px;
+                cursor: pointer;
+                margin-top: 4px;
+            }
+            #reset-btn:hover {
+                background: #e94560;
+                color: #fff;
+            }
+            #export-btn {
+                width: 100%;
+                padding: 7px;
+                border: 1px solid #4ade80;
+                border-radius: 6px;
+                background: transparent;
+                color: #4ade80;
+                font-size: 12px;
+                cursor: pointer;
+                margin-top: 4px;
+            }
+            #export-btn:hover {
+                background: #4ade80;
+                color: #0a0a1a;
+            }
+            .kbd {
+                display: inline-block;
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 3px;
+                padding: 0 4px;
+                font-size: 10px;
+                font-family: monospace;
+                color: #aaa;
+                margin-left: 2px;
+                vertical-align: middle;
+                line-height: 16px;
+            }
+
+            /* View controls */
+            .view-row {
+                display: flex;
+                gap: 4px;
+            }
+            .view-btn {
+                flex: 1;
+                padding: 6px;
+                border: 1px solid #444;
+                border-radius: 5px;
+                background: rgba(30, 40, 70, 0.6);
+                color: #bbb;
+                cursor: pointer;
+                font-size: 11px;
+                text-align: center;
+            }
+            .view-btn:hover {
+                border-color: #888;
+                color: #fff;
+            }
+
+            /* ── Status bar (bottom centre) ──────────────────────────────── */
+            #status-bar {
+                position: absolute;
+                bottom: 16px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(20, 20, 40, 0.88);
+                backdrop-filter: blur(8px);
+                border-radius: 10px;
+                padding: 8px 20px;
+                font-size: 13px;
+                color: #ccc;
+                white-space: nowrap;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            #status-bar .error {
+                color: #e94560;
+            }
+
+            /* ── Right panel (move history) ──────────────────────────────── */
+            #right-panel {
+                position: absolute;
+                top: 80px;
+                right: 16px;
+                background: rgba(20, 20, 40, 0.9);
+                backdrop-filter: blur(8px);
+                border-radius: 12px;
+                padding: 14px;
+                width: 230px;
+                max-height: 300px;
+                overflow-y: auto;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            #right-panel .section-label {
+                margin-bottom: 6px;
+            }
+            .history-entry {
+                font-size: 11px;
+                font-family: monospace;
+                padding: 2px 0;
+                color: #bbb;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            }
+            .history-entry .hw {
+                color: #f0f0f0;
+            }
+            .history-entry .hb {
+                color: #777;
+            }
+
+            /* ── Game over overlay ───────────────────────────────────────── */
+            #game-over-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 200;
+            }
+            #game-over-overlay.hidden {
+                display: none;
+            }
+            #game-over-content {
+                background: #1a1a2e;
+                border-radius: 16px;
+                padding: 40px 50px;
+                text-align: center;
+                border: 2px solid #e94560;
+            }
+            #game-over-content h2 {
+                font-size: 28px;
+                margin-bottom: 12px;
+            }
+            #final-scores {
+                font-size: 20px;
+                margin-bottom: 8px;
+            }
+            #winner-text {
+                font-size: 22px;
+                font-weight: 700;
+                margin-bottom: 20px;
+            }
+            #play-again-btn {
+                padding: 12px 32px;
+                border: none;
+                border-radius: 8px;
+                background: #e94560;
+                color: #fff;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            #play-again-btn:hover {
+                background: #c5303c;
+            }
+            #close-overlay-btn {
+                padding: 12px 32px;
+                border: 2px solid #888;
+                border-radius: 8px;
+                background: transparent;
+                color: #ccc;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            #close-overlay-btn:hover {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: #aaa;
+                color: #fff;
+            }
+
+            /* ── Mode selector ──────────────────────────────────────────── */
+            #mode-selector {
+                display: flex;
+                gap: 4px;
+                margin-bottom: 6px;
+            }
+            .mode-btn {
+                flex: 1;
+                padding: 6px 8px;
+                border: 1px solid #444;
+                border-radius: 5px;
+                background: rgba(30, 40, 70, 0.6);
+                color: #bbb;
+                cursor: pointer;
+                font-size: 11px;
+                text-align: center;
+                transition: all 0.15s;
+            }
+            .mode-btn:hover {
+                border-color: #888;
+                color: #fff;
+            }
+            .mode-btn.active {
+                background: #0f3460;
+                border-color: #e94560;
+                color: #fff;
+            }
+
+            /* ── Processing state ────────────────────────────────────────── */
+            body.processing #left-panel {
+                opacity: 0.4;
+                pointer-events: none;
+            }
+
+            /* ── Instructions tooltip ────────────────────────────────────── */
+            .info-text {
+                font-size: 11px;
+                color: #666;
+                line-height: 1.5;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="canvas-container"></div>
+
+        <div id="hud">
+            <!-- Score bar -->
+            <div id="score-bar">
+                <div class="score-box">
+                    <div class="score-label">White (You)</div>
+                    <div class="score-value white-score" id="white-score">
+                        0
+                    </div>
+                </div>
+                <div id="turn-indicator" class="your-turn">Your Turn</div>
+                <div class="score-box">
+                    <div class="score-label">Black (AI)</div>
+                    <div class="score-value black-score" id="black-score">
+                        0
+                    </div>
+                </div>
+            </div>
+
+            <!-- Left panel: controls -->
+            <div id="left-panel">
+                <button id="collapse-btn" onclick="togglePanel()">
+                    &#9664;
+                </button>
+
+                <div class="panel-section">
+                    <div class="section-label">Block Pool</div>
+                    <div id="block-cards"></div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-label">Orientation</div>
+                    <div class="orient-buttons">
+                        <button class="orient-btn" data-orient="x">
+                            X &rarr; <span class="kbd">Q</span>
+                        </button>
+                        <button class="orient-btn" data-orient="y">
+                            Y &darr; <span class="kbd">W</span>
+                        </button>
+                        <button class="orient-btn active" data-orient="z">
+                            Z &uarr; <span class="kbd">E</span>
+                        </button>
+                    </div>
+                    <div style="margin-top: 6px">
+                        <button id="flip-btn" style="width: 100%">
+                            Flip: Off <span class="kbd">F</span>
+                        </button>
+                    </div>
+                    <div class="action-row">
+                        <button id="confirm-btn" disabled>Place Block</button>
+                        <button id="cancel-btn">Cancel</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-label">Game Mode</div>
+                    <div id="mode-selector">
+                        <button class="mode-btn active" data-mode="standard">Standard</button>
+                        <button class="mode-btn" data-mode="open_grid">Open Grid</button>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <div class="section-label">View</div>
+                    <div class="view-row">
+                        <button class="view-btn" onclick="resetCamera()">
+                            Reset View
+                        </button>
+                        <button class="view-btn" onclick="toggleGrid()">
+                            Toggle Grid
+                        </button>
+                    </div>
+                    <button id="reset-btn">New Game</button>
+                    <button id="export-btn">Export Move List</button>
+                </div>
+
+                <div class="panel-section">
+                    <div class="info-text">
+                        Drag to rotate &bull; Scroll to zoom<br />
+                        Click on the grid/blocks to place<br />
+                        Blocks drop with gravity<br />
+                        Same color can't stack on same color<br />
+                        Red is wild (goes on anything)<br /><br />
+                        <b>Shortcuts:</b> <span class="kbd">1</span>-<span
+                            class="kbd"
+                            >5</span
+                        >
+                        blocks &bull; <span class="kbd">Q</span
+                        ><span class="kbd">W</span
+                        ><span class="kbd">E</span> orient &bull;
+                        <span class="kbd">F</span> flip &bull;
+                        <span class="kbd">Esc</span> cancel
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right panel: history -->
+            <div id="right-panel">
+                <div class="section-label">Move History</div>
+                <div id="history-list"></div>
+            </div>
+
+            <!-- Status bar -->
+            <div id="status-bar">
+                <span id="status-message">Select a block to begin.</span>
+            </div>
+        </div>
+
+        <div id="game-over-overlay" class="hidden">
+            <div id="game-over-content">
+                <h2>Game Over!</h2>
+                <p id="final-scores"></p>
+                <p id="winner-text"></p>
+                <div style="display: flex; gap: 12px; justify-content: center">
+                    <button id="play-again-btn">Play Again</button>
+                    <button id="close-overlay-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+        <script>
+            /* ==================================================================
+   GAME STATE
+   ================================================================== */
+            const S = {
+                blockType: null, // "BW", "WW", etc.
+                orientation: "z",
+                flip: false,
+                phase: "SELECT_BLOCK", // SELECT_BLOCK | SELECT_POSITION
+                grid: {}, // "x,y,z" -> "white"/"black"/"red"
+                whiteScore: 0,
+                blackScore: 0,
+                currentPlayer: "white",
+                gameOver: false,
+                remaining: {},
+                legalMoves: {},
+                moveLog: [],
+                validPositions: new Set(),
+                processing: false,
+                bounds: { x_min: 0, x_max: 3, y_min: 0, y_max: 3, z_min: 0, z_max: 3 },
+                selectedMode: "standard",
+                gameMode: "standard",
+                prevBoundsKey: "0,3,0,3,0,3",
+            };
+
+            const BLOCK_TYPES = ["BB", "WW", "BW", "BR", "WR"];
+            const COLOR_MAP = { B: "black", W: "white", R: "red" };
+            const HEX_MAP = { white: 0xf0f0f0, black: 0x1a1a1a, red: 0xe63946 };
+
+            /* ==================================================================
+   THREE.JS SCENE
+   ================================================================== */
+            let scene, camera, renderer, controls;
+            let gridObjects = [];
+            let showGrid = true;
+            let raycaster, mouse;
+            let placedMeshes = []; // {cube1, cube2} for each placed block (keyed by "x,y,z")
+            let ghostMeshes = null; // {cube1, cube2} for hover preview
+            let aiHighlightMeshes = []; // meshes from AI's last move (to animate glow)
+
+            /* Coordinate convention:
+   Game:    (x, y, z) where z is height (0 = ground, 3 = top)
+   Three.js: (x, z, y) — Three.js Y is up, so game-z maps to Three.js-Y
+   Position offset: game cell (x,y,z) centre → Three.js (x+0.5, z+0.5, y+0.5)
+*/
+            function g2t(gx, gy, gz) {
+                // Offset game coords by bounds so grid renders at Three.js origin
+                const ox = gx - S.bounds.x_min;
+                const oy = gy - S.bounds.y_min;
+                return [ox + 0.5, gz + 0.5, oy + 0.5];
+            }
+
+            function initThree() {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color("skyblue");
+
+                camera = new THREE.PerspectiveCamera(
+                    35,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    1000,
+                );
+                camera.position.set(8, 7, 8);
+                camera.lookAt(2, 2, 2);
+
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                document
+                    .getElementById("canvas-container")
+                    .appendChild(renderer.domElement);
+
+                // Lighting
+                scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+                const d1 = new THREE.DirectionalLight(0xffffff, 0.6);
+                d1.position.set(10, 12, 8);
+                scene.add(d1);
+                const d2 = new THREE.DirectionalLight(0xffffff, 0.25);
+                d2.position.set(-8, -4, -6);
+                scene.add(d2);
+
+                // Orbit controls
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.target.set(2, 2, 2);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.08;
+                controls.screenSpacePanning = false;
+                controls.minDistance = 4;
+                controls.maxDistance = 22;
+                controls.update();
+
+                // Track dragging to prevent click-on-drag
+                let dragging = false;
+                controls.addEventListener("start", () => {
+                    dragging = true;
+                });
+                controls.addEventListener("end", () => {
+                    setTimeout(() => {
+                        dragging = false;
+                    }, 120);
+                });
+                window._isDragging = () => dragging;
+
+                raycaster = new THREE.Raycaster();
+                mouse = new THREE.Vector2();
+
+                createGrid();
+
+                renderer.domElement.addEventListener("mousemove", onMouseMove);
+                renderer.domElement.addEventListener("click", onCanvasClick);
+                window.addEventListener("resize", () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                animate();
+            }
+
+            function createGrid() {
+                recreateGrid();
+            }
+
+            function recreateGrid() {
+                // Remove old grid objects
+                for (const obj of gridObjects) {
+                    scene.remove(obj);
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) obj.material.dispose();
+                }
+                gridObjects = [];
+
+                const b = S.bounds;
+                const xSize = b.x_max - b.x_min + 1;
+                const ySize = b.y_max - b.y_min + 1;
+                const zSize = 4; // always 4 high
+                const cx = xSize / 2;
+                const cy = zSize / 2;
+                const cz = ySize / 2;
+
+                // Boundary wireframe
+                const boxGeo = new THREE.BoxGeometry(xSize, zSize, ySize);
+                const boxEdges = new THREE.EdgesGeometry(boxGeo);
+                const boxLine = new THREE.LineSegments(
+                    boxEdges,
+                    new THREE.LineBasicMaterial({ color: 0x444466 }),
+                );
+                boxLine.position.set(cx, cy, cz);
+                scene.add(boxLine);
+                gridObjects.push(boxLine);
+
+                // Floor grids at each z-level
+                // GridHelper creates a square grid, so use the larger dimension
+                const gridSize = Math.max(xSize, ySize);
+                for (let gz = 0; gz <= zSize; gz++) {
+                    const grid = new THREE.GridHelper(
+                        gridSize, gridSize, 0x333355, 0x222244
+                    );
+                    // Scale non-uniformly if not square
+                    grid.position.set(cx, gz, cz);
+                    if (xSize !== ySize) {
+                        grid.scale.set(xSize / gridSize, 1, ySize / gridSize);
+                    }
+                    scene.add(grid);
+                    gridObjects.push(grid);
+                }
+
+                // Axes: small coloured lines from origin
+                const axLen = Math.max(xSize, ySize) + 1;
+                const axMat = (c) => new THREE.LineBasicMaterial({ color: c });
+                const mkAx = (pts, c) => {
+                    const g = new THREE.BufferGeometry().setFromPoints(pts);
+                    const l = new THREE.Line(g, axMat(c));
+                    scene.add(l);
+                    gridObjects.push(l);
+                };
+                mkAx(
+                    [new THREE.Vector3(0, 0, 0), new THREE.Vector3(axLen, 0, 0)],
+                    0xff4444,
+                ); // X red
+                mkAx(
+                    [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, axLen, 0)],
+                    0x44ff44,
+                ); // Y(up=Z game) green
+                mkAx(
+                    [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, axLen)],
+                    0x4444ff,
+                ); // Z(=Y game) blue
+
+                // Update camera target to centre of grid
+                controls.target.set(cx, cy, cz);
+                controls.update();
+            }
+
+            function toggleGrid() {
+                showGrid = !showGrid;
+                gridObjects.forEach((o) => (o.visible = showGrid));
+            }
+            function resetCamera() {
+                const b = S.bounds;
+                const cx = (b.x_max - b.x_min + 1) / 2;
+                const cy = 2;
+                const cz = (b.y_max - b.y_min + 1) / 2;
+                camera.position.set(cx + 6, cy + 5, cz + 6);
+                controls.target.set(cx, cy, cz);
+                controls.update();
+            }
+            function togglePanel() {
+                const p = document.getElementById("left-panel");
+                p.classList.toggle("collapsed");
+                document.getElementById("collapse-btn").textContent =
+                    p.classList.contains("collapsed") ? "\u25B6" : "\u25C0";
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+
+                // Pulse AI highlight meshes
+                const t = Date.now() * 0.003;
+                for (const m of aiHighlightMeshes) {
+                    if (m._aiStart) {
+                        const elapsed = Date.now() - m._aiStart;
+                        if (elapsed > 3000) {
+                            m.material.emissive.setHex(0x000000);
+                            m.material.emissiveIntensity = 0;
+                        } else {
+                            const pulse = Math.sin(elapsed * 0.006) * 0.5 + 0.5;
+                            m.material.emissiveIntensity =
+                                pulse * 0.6 * (1 - elapsed / 3000);
+                        }
+                    }
+                }
+
+                renderer.render(scene, camera);
+            }
+
+            /* ==================================================================
+   3D BLOCK RENDERING
+   ================================================================== */
+            function clearAllBlocks() {
+                for (const entry of placedMeshes) {
+                    scene.remove(entry.cube1);
+                    scene.remove(entry.cube2);
+                }
+                placedMeshes = [];
+                aiHighlightMeshes = [];
+            }
+
+            function rebuildScene() {
+                clearAllBlocks();
+                // Rebuild from S.grid — group cells by their PlacedBlock identity
+                // Since we only know cell colours (not block pairings), render each occupied cell as a cube
+                for (const key in S.grid) {
+                    const [gx, gy, gz] = key.split(",").map(Number);
+                    const color = S.grid[key];
+                    addCellCube(gx, gy, gz, HEX_MAP[color] || 0x888888, false);
+                }
+            }
+
+            function addCellCube(gx, gy, gz, hex, isAI) {
+                const size = 0.94;
+                const geo = new THREE.BoxGeometry(size, size, size);
+                const mat = new THREE.MeshPhongMaterial({
+                    color: hex,
+                    shininess: 40,
+                });
+                if (isAI) {
+                    mat.emissive = new THREE.Color(0xfbbf24);
+                    mat.emissiveIntensity = 0.5;
+                }
+                const cube = new THREE.Mesh(geo, mat);
+                const [tx, ty, tz] = g2t(gx, gy, gz);
+                cube.position.set(tx, ty, tz);
+
+                // Wireframe
+                const edges = new THREE.EdgesGeometry(geo);
+                const line = new THREE.LineSegments(
+                    edges,
+                    new THREE.LineBasicMaterial({
+                        color: 0x000000,
+                        transparent: true,
+                        opacity: 0.35,
+                    }),
+                );
+                cube.add(line);
+
+                scene.add(cube);
+
+                // Track for raycasting (use a flat list; cube1/cube2 pairing not needed for single-cell rendering)
+                const entry = { cube1: cube, cube2: cube, gx, gy, gz };
+                placedMeshes.push(entry);
+
+                if (isAI) {
+                    cube._aiStart = Date.now();
+                    aiHighlightMeshes.push(cube);
+                }
+                return cube;
+            }
+
+            /* ==================================================================
+   GHOST (HOVER PREVIEW)
+   ================================================================== */
+            function removeGhost() {
+                if (ghostMeshes) {
+                    scene.remove(ghostMeshes.cube1);
+                    scene.remove(ghostMeshes.cube2);
+                    ghostMeshes = null;
+                }
+            }
+
+            function showGhost(gx, gy, gz) {
+                removeGhost();
+                if (!S.blockType) return;
+
+                const pair = getBlockCells(gx, gy, gz);
+                if (!pair) return;
+                const [[x1, y1, z1], [x2, y2, z2]] = pair;
+
+                const bt = S.blockType;
+                const col1 = S.flip ? COLOR_MAP[bt[1]] : COLOR_MAP[bt[0]];
+                const col2 = S.flip ? COLOR_MAP[bt[0]] : COLOR_MAP[bt[1]];
+
+                const makeCube = (gx2, gy2, gz2, colorName) => {
+                    const size = 0.94;
+                    const geo = new THREE.BoxGeometry(size, size, size);
+                    const mat = new THREE.MeshPhongMaterial({
+                        color: HEX_MAP[colorName],
+                        transparent: true,
+                        opacity: 0.35,
+                        shininess: 20,
+                    });
+                    const cube = new THREE.Mesh(geo, mat);
+                    const [tx, ty, tz] = g2t(gx2, gy2, gz2);
+                    cube.position.set(tx, ty, tz);
+                    const edges = new THREE.EdgesGeometry(geo);
+                    const line = new THREE.LineSegments(
+                        edges,
+                        new THREE.LineBasicMaterial({
+                            color: 0xffffff,
+                            transparent: true,
+                            opacity: 0.4,
+                        }),
+                    );
+                    cube.add(line);
+                    scene.add(cube);
+                    return cube;
+                };
+
+                ghostMeshes = {
+                    cube1: makeCube(x1, y1, z1, col1),
+                    cube2: makeCube(x2, y2, z2, col2),
+                };
+            }
+
+            /* ==================================================================
+   MOUSE INTERACTION
+   ================================================================== */
+            function onMouseMove(event) {
+                if (!S.blockType || S.phase !== "SELECT_POSITION") {
+                    removeGhost();
+                    return;
+                }
+
+                const rect = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                const pos = findPlacementPos();
+                if (pos) {
+                    showGhost(pos.x, pos.y, pos.z);
+                } else {
+                    removeGhost();
+                }
+            }
+
+            function onCanvasClick(event) {
+                if (window._isDragging && window._isDragging()) return;
+                if (S.processing || S.gameOver) return;
+                if (S.phase !== "SELECT_POSITION" || !S.blockType) return;
+
+                const rect = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                const pos = findPlacementPos();
+                if (pos) {
+                    // Check if this is a valid server-side move
+                    const key = `${pos.x},${pos.y},${pos.z}`;
+                    if (S.validPositions.has(key)) {
+                        placeBlock(pos.x, pos.y, pos.z);
+                    }
+                }
+            }
+
+            function findPlacementPos() {
+                raycaster.setFromCamera(mouse, camera);
+                const b = S.bounds;
+
+                // 1. Try clicking on an existing block face
+                const meshes = [];
+                for (const entry of placedMeshes) {
+                    meshes.push(entry.cube1);
+                    if (entry.cube2 !== entry.cube1) meshes.push(entry.cube2);
+                }
+                const intersects = raycaster.intersectObjects(meshes);
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    const normal = hit.face.normal.clone();
+                    normal.transformDirection(hit.object.matrixWorld);
+                    const adj = hit.point
+                        .clone()
+                        .add(normal.multiplyScalar(0.6));
+                    // Convert Three.js back to game coords (reverse of g2t)
+                    const gx = Math.max(
+                        b.x_min,
+                        Math.min(b.x_max, Math.round(adj.x - 0.5 + b.x_min)),
+                    );
+                    const gy = Math.max(
+                        b.y_min,
+                        Math.min(b.y_max, Math.round(adj.z - 0.5 + b.y_min)),
+                    );
+                    const gz = Math.max(
+                        0,
+                        Math.min(3, Math.round(adj.y - 0.5)),
+                    );
+                    return applyGravity(gx, gy, gz);
+                }
+
+                // 2. Fall back to closest grid point
+                let best = null,
+                    bestDist = 0.6;
+                for (let gx = b.x_min; gx <= b.x_max; gx++) {
+                    for (let gy = b.y_min; gy <= b.y_max; gy++) {
+                        for (let gz = 0; gz <= 3; gz++) {
+                            const [tx, ty, tz] = g2t(gx, gy, gz);
+                            const pt = new THREE.Vector3(tx, ty, tz);
+                            const d = raycaster.ray.distanceToPoint(pt);
+                            if (d < bestDist) {
+                                bestDist = d;
+                                best = { x: gx, y: gy, z: gz };
+                            }
+                        }
+                    }
+                }
+                return best ? applyGravity(best.x, best.y, best.z) : null;
+            }
+
+            function applyGravity(gx, gy, targetZ) {
+                // Drop block to lowest valid + supported position
+                const b = S.bounds;
+                for (let z = 0; z <= targetZ; z++) {
+                    const cells = getBlockCells(gx, gy, z);
+                    if (!cells) continue;
+                    const [[x1, y1, z1], [x2, y2, z2]] = cells;
+                    // bounds (use server-provided bounds for validation)
+                    if (z1 < 0 || z1 > 3 || z2 < 0 || z2 > 3) continue;
+                    // occupied?
+                    if (
+                        S.grid[`${x1},${y1},${z1}`] ||
+                        S.grid[`${x2},${y2},${z2}`]
+                    )
+                        continue;
+                    // support
+                    if (!hasSupport(x1, y1, z1, x2, y2, z2)) continue;
+                    // valid on server? (authoritative source of truth)
+                    const key = `${gx},${gy},${z}`;
+                    if (S.validPositions.has(key)) return { x: gx, y: gy, z };
+                }
+                // If nothing below works, try the target itself
+                const key = `${gx},${gy},${targetZ}`;
+                if (S.validPositions.has(key))
+                    return { x: gx, y: gy, z: targetZ };
+                return null;
+            }
+
+            function hasSupport(x1, y1, z1, x2, y2, z2) {
+                const pairSet = new Set([
+                    `${x1},${y1},${z1}`,
+                    `${x2},${y2},${z2}`,
+                ]);
+                for (const [cx, cy, cz] of [
+                    [x1, y1, z1],
+                    [x2, y2, z2],
+                ]) {
+                    if (cz === 0) continue;
+                    const below = `${cx},${cy},${cz - 1}`;
+                    if (!S.grid[below] && !pairSet.has(below)) return false;
+                }
+                return true;
+            }
+
+            function getBlockCells(gx, gy, gz) {
+                let x2 = gx,
+                    y2 = gy,
+                    z2 = gz;
+                if (S.orientation === "x") x2 = gx + 1;
+                else if (S.orientation === "y") y2 = gy + 1;
+                else z2 = gz + 1;
+                // Z is always 0-3; X/Y validated by server via validPositions
+                if (z2 > 3) return null;
+                return [
+                    [gx, gy, gz],
+                    [x2, y2, z2],
+                ];
+            }
+
+            /* ==================================================================
+   SERVER COMMUNICATION
+   ================================================================== */
+            async function placeBlock(gx, gy, gz) {
+                if (S.processing) return;
+                setProcessing(true);
+                setStatus("Placing block...");
+                removeGhost();
+
+                try {
+                    const resp = await fetch("/api/move", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            block_type: S.blockType,
+                            position: [gx, gy, gz],
+                            orientation: S.orientation,
+                            flip: S.flip,
+                        }),
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        setStatus(`<span class="error">${data.error}</span>`);
+                        setProcessing(false);
+                        return;
+                    }
+
+                    // Apply server state
+                    applyServerState(data.state);
+                    S.legalMoves = data.legal_moves || {};
+
+                    // Rebuild 3D scene from new grid
+                    rebuildScene();
+
+                    // Highlight AI cells
+                    aiHighlightMeshes = [];
+                    if (data.ai_move && data.ai_move.cells) {
+                        for (const [cx, cy, cz] of data.ai_move.cells) {
+                            // Find the cube we just added at this position and mark it
+                            for (const entry of placedMeshes) {
+                                if (
+                                    entry.gx === cx &&
+                                    entry.gy === cy &&
+                                    entry.gz === cz
+                                ) {
+                                    entry.cube1._aiStart = Date.now();
+                                    entry.cube1.material.emissive =
+                                        new THREE.Color(0xfbbf24);
+                                    entry.cube1.material.emissiveIntensity = 0.5;
+                                    aiHighlightMeshes.push(entry.cube1);
+                                }
+                            }
+                        }
+                    }
+
+                    // Reset selection
+                    cancelSelectionSilent();
+                    renderUI();
+
+                    if (S.gameOver) {
+                        showGameOver();
+                    } else if (data.ai_move) {
+                        setStatus(
+                            `AI played ${data.ai_move.block_type} at (${data.ai_move.position.join(",")}) ${data.ai_move.orientation.toUpperCase()}. Your turn!`,
+                        );
+                    } else {
+                        setStatus("Your turn!");
+                    }
+                } catch (err) {
+                    setStatus(
+                        `<span class="error">Connection error: ${err.message}</span>`,
+                    );
+                }
+                setProcessing(false);
+            }
+
+            async function resetGame() {
+                document
+                    .getElementById("game-over-overlay")
+                    .classList.add("hidden");
+                setProcessing(true);
+                try {
+                    const resp = await fetch("/api/reset", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ mode: S.selectedMode }),
+                    });
+                    const data = await resp.json();
+                    // Reset bounds key so grid rebuilds on first state
+                    S.prevBoundsKey = "";
+                    applyServerState(data.state);
+                    S.legalMoves = data.legal_moves || {};
+                    cancelSelectionSilent();
+                    clearAllBlocks();
+                    recreateGrid();
+                    renderUI();
+                    const modeLabel = S.selectedMode === "open_grid" ? "Open Grid" : "Standard";
+                    setStatus(`${modeLabel} mode — Select a block to begin.`);
+                } catch (err) {
+                    setStatus(
+                        `<span class="error">Connection error: ${err.message}</span>`,
+                    );
+                }
+                setProcessing(false);
+            }
+
+            function applyServerState(st) {
+                S.grid = st.grid || {};
+                const prevW = S.whiteScore,
+                    prevB = S.blackScore;
+                S.whiteScore = st.white_score;
+                S.blackScore = st.black_score;
+                S.currentPlayer = st.current_player;
+                S.gameOver = st.game_over;
+                S.remaining = st.remaining_blocks || {};
+                S.moveLog = st.move_log || [];
+                S.gameMode = st.mode || "standard";
+                if (st.white_score !== prevW) bounceScore("white-score");
+                if (st.black_score !== prevB) bounceScore("black-score");
+
+                // Update bounds and rebuild grid if changed
+                const newBounds = st.bounds || { x_min: 0, x_max: 3, y_min: 0, y_max: 3, z_min: 0, z_max: 3 };
+                const newKey = `${newBounds.x_min},${newBounds.x_max},${newBounds.y_min},${newBounds.y_max},${newBounds.z_min},${newBounds.z_max}`;
+                S.bounds = newBounds;
+                if (newKey !== S.prevBoundsKey) {
+                    S.prevBoundsKey = newKey;
+                    recreateGrid();
+                }
+            }
+
+            function bounceScore(id) {
+                const el = document.getElementById(id);
+                el.classList.add("bounce");
+                setTimeout(() => el.classList.remove("bounce"), 250);
+            }
+
+            /* ==================================================================
+   UI RENDERING
+   ================================================================== */
+            function renderUI() {
+                renderBlockPool();
+                renderScores();
+                renderHistory();
+                renderTurnIndicator();
+            }
+
+            function renderBlockPool() {
+                const c = document.getElementById("block-cards");
+                c.innerHTML = "";
+                for (const bt of BLOCK_TYPES) {
+                    const count = S.remaining[bt] || 0;
+                    const card = document.createElement("div");
+                    card.className = "block-card";
+                    if (count === 0) card.classList.add("disabled");
+                    if (bt === S.blockType) card.classList.add("selected-card");
+                    const c1 = COLOR_MAP[bt[0]],
+                        c2 = COLOR_MAP[bt[1]];
+                    card.innerHTML = `<div class="block-colors"><div class="block-half bh-${c1}"></div><div class="block-half bh-${c2}"></div></div><div class="block-count">${bt} &times;${count}</div>`;
+                    if (count > 0)
+                        card.addEventListener("click", () => selectBlock(bt));
+                    c.appendChild(card);
+                }
+            }
+
+            function selectBlock(bt) {
+                S.blockType = bt;
+                const uniform = bt[0] === bt[1];
+                if (uniform) {
+                    S.flip = false;
+                    document.getElementById("flip-btn").textContent =
+                        "Flip: Off";
+                    document
+                        .getElementById("flip-btn")
+                        .classList.remove("flipped");
+                }
+                document.getElementById("flip-btn").style.visibility = uniform
+                    ? "hidden"
+                    : "visible";
+                S.phase = "SELECT_POSITION";
+                computeValid();
+                renderBlockPool();
+                updateStatus();
+            }
+
+            function computeValid() {
+                S.validPositions.clear();
+                if (!S.blockType || !S.legalMoves[S.blockType]) return;
+                const od = S.legalMoves[S.blockType][S.orientation];
+                if (!od) return;
+                const uniform = S.blockType[0] === S.blockType[1];
+                if (uniform) {
+                    for (const fk of ["true", "false"]) {
+                        for (const p of od[fk] || [])
+                            S.validPositions.add(p.join(","));
+                    }
+                } else {
+                    const fk = S.flip ? "true" : "false";
+                    for (const p of od[fk] || [])
+                        S.validPositions.add(p.join(","));
+                }
+            }
+
+            function renderScores() {
+                document.getElementById("white-score").textContent =
+                    S.whiteScore;
+                document.getElementById("black-score").textContent =
+                    S.blackScore;
+            }
+
+            function renderTurnIndicator() {
+                const el = document.getElementById("turn-indicator");
+                el.classList.remove("your-turn", "ai-turn", "game-over-ind");
+                if (S.gameOver) {
+                    el.textContent = "Game Over";
+                    el.classList.add("game-over-ind");
+                } else if (S.currentPlayer === "white") {
+                    el.textContent = "Your Turn";
+                    el.classList.add("your-turn");
+                } else {
+                    el.textContent = "AI Thinking...";
+                    el.classList.add("ai-turn");
+                }
+            }
+
+            function renderHistory() {
+                const list = document.getElementById("history-list");
+                list.innerHTML = "";
+                for (let i = S.moveLog.length - 1; i >= 0; i--) {
+                    const m = S.moveLog[i];
+                    const div = document.createElement("div");
+                    div.className = "history-entry";
+                    const cls = m.player === "white" ? "hw" : "hb";
+                    const who = m.player === "white" ? "You" : "AI";
+                    const fl = m.flip ? " flip" : "";
+                    div.innerHTML = `<span class="${cls}">${i + 1}. ${who}:</span> ${m.block_type} (${m.position.join(",")}) ${m.orientation.toUpperCase()}${fl}`;
+                    list.appendChild(div);
+                }
+            }
+
+            function cancelSelectionSilent() {
+                S.blockType = null;
+                S.phase = "SELECT_BLOCK";
+                S.validPositions.clear();
+                removeGhost();
+                document.getElementById("flip-btn").style.visibility =
+                    "visible";
+                document.getElementById("confirm-btn").disabled = true;
+            }
+
+            function cancelSelection() {
+                cancelSelectionSilent();
+                renderBlockPool();
+                updateStatus();
+            }
+
+            function setStatus(html) {
+                document.getElementById("status-message").innerHTML = html;
+            }
+            function updateStatus() {
+                if (S.gameOver) setStatus("Game over!");
+                else if (S.phase === "SELECT_BLOCK")
+                    setStatus("Select a block from the pool.");
+                else if (S.phase === "SELECT_POSITION")
+                    setStatus(
+                        `Click the grid to place <b>${S.blockType}</b> along <b>${S.orientation.toUpperCase()}</b>${S.flip ? " (flipped)" : ""}`,
+                    );
+            }
+
+            function setProcessing(on) {
+                S.processing = on;
+                document.body.classList.toggle("processing", on);
+            }
+
+            function showGameOver() {
+                document
+                    .getElementById("game-over-overlay")
+                    .classList.remove("hidden");
+                document.getElementById("final-scores").textContent =
+                    `White: ${S.whiteScore}  |  Black: ${S.blackScore}`;
+                const wt = document.getElementById("winner-text");
+                if (S.whiteScore > S.blackScore) {
+                    wt.textContent = "You Win!";
+                    wt.style.color = "#4ade80";
+                } else if (S.blackScore > S.whiteScore) {
+                    wt.textContent = "AI Wins!";
+                    wt.style.color = "#e94560";
+                } else {
+                    wt.textContent = "It's a Tie!";
+                    wt.style.color = "#fbbf24";
+                }
+            }
+
+            /* ==================================================================
+   CONTROL HANDLERS
+   ================================================================== */
+            // Mode selector
+            document.querySelectorAll(".mode-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const mode = btn.dataset.mode;
+                    if (mode === S.selectedMode) return;
+                    S.selectedMode = mode;
+                    document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    resetGame();
+                });
+            });
+
+            document.querySelectorAll(".orient-btn").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    setOrientation(btn.dataset.orient);
+                });
+            });
+
+            document
+                .getElementById("flip-btn")
+                .addEventListener("click", () => {
+                    toggleFlip();
+                });
+
+            document
+                .getElementById("confirm-btn")
+                .addEventListener("click", () => {
+                    /* confirm-btn is now unused — clicks go directly on 3D canvas */
+                });
+            document
+                .getElementById("cancel-btn")
+                .addEventListener("click", cancelSelection);
+            document
+                .getElementById("reset-btn")
+                .addEventListener("click", resetGame);
+            document
+                .getElementById("play-again-btn")
+                .addEventListener("click", resetGame);
+            document
+                .getElementById("close-overlay-btn")
+                .addEventListener("click", () => {
+                    document
+                        .getElementById("game-over-overlay")
+                        .classList.add("hidden");
+                });
+            document
+                .getElementById("export-btn")
+                .addEventListener("click", exportMoveList);
+
+            /* ==================================================================
+   KEYBOARD SHORTCUTS
+   ================================================================== */
+            function setOrientation(orient) {
+                document
+                    .querySelectorAll(".orient-btn")
+                    .forEach((b) => b.classList.remove("active"));
+                const btn = document.querySelector(
+                    `.orient-btn[data-orient="${orient}"]`,
+                );
+                if (btn) btn.classList.add("active");
+                S.orientation = orient;
+                S.phase = S.blockType ? "SELECT_POSITION" : "SELECT_BLOCK";
+                computeValid();
+                updateStatus();
+            }
+
+            function toggleFlip() {
+                S.flip = !S.flip;
+                const btn = document.getElementById("flip-btn");
+                btn.textContent = S.flip ? "Flip: On " : "Flip: Off ";
+                // Re-add the kbd hint
+                const kbd = document.createElement("span");
+                kbd.className = "kbd";
+                kbd.textContent = "F";
+                btn.appendChild(kbd);
+                btn.classList.toggle("flipped", S.flip);
+                S.phase = S.blockType ? "SELECT_POSITION" : "SELECT_BLOCK";
+                computeValid();
+                updateStatus();
+            }
+
+            document.addEventListener("keydown", (e) => {
+                // Ignore if typing in an input field
+                if (
+                    e.target.tagName === "INPUT" ||
+                    e.target.tagName === "TEXTAREA"
+                )
+                    return;
+                if (S.processing || S.gameOver) return;
+
+                const key = e.key.toLowerCase();
+
+                // 1-5: Block selection (BB, WW, BW, BR, WR)
+                if (key >= "1" && key <= "5") {
+                    const idx = parseInt(key) - 1;
+                    const bt = BLOCK_TYPES[idx];
+                    if (bt && (S.remaining[bt] || 0) > 0) {
+                        selectBlock(bt);
+                    }
+                    e.preventDefault();
+                    return;
+                }
+
+                // Q/W/E: Orientation X/Y/Z
+                if (key === "q") {
+                    setOrientation("x");
+                    e.preventDefault();
+                    return;
+                }
+                if (key === "w") {
+                    setOrientation("y");
+                    e.preventDefault();
+                    return;
+                }
+                if (key === "e") {
+                    setOrientation("z");
+                    e.preventDefault();
+                    return;
+                }
+
+                // F: Flip
+                if (key === "f") {
+                    toggleFlip();
+                    e.preventDefault();
+                    return;
+                }
+
+                // Escape: Cancel selection
+                if (key === "escape") {
+                    cancelSelection();
+                    e.preventDefault();
+                    return;
+                }
+            });
+
+            /* ==================================================================
+   EXPORT MOVE LIST
+   ================================================================== */
+            function exportMoveList() {
+                if (S.moveLog.length === 0) {
+                    setStatus("No moves to export yet.");
+                    return;
+                }
+
+                let lines = [];
+                lines.push("4x4x4 Block Stacking Game — Move Log");
+                lines.push("=====================================");
+                lines.push(`Date: ${new Date().toISOString()}`);
+                lines.push(
+                    `Final Score: White ${S.whiteScore} | Black ${S.blackScore}`,
+                );
+                if (S.gameOver) {
+                    if (S.whiteScore > S.blackScore)
+                        lines.push("Result: White (Human) wins");
+                    else if (S.blackScore > S.whiteScore)
+                        lines.push("Result: Black (AI) wins");
+                    else lines.push("Result: Tie");
+                } else {
+                    lines.push(
+                        `Status: In progress (move ${S.moveLog.length})`,
+                    );
+                }
+                lines.push("");
+                lines.push("Move | Player | Block | Position  | Orient | Flip");
+                lines.push("-----|--------|-------|-----------|--------|-----");
+
+                for (let i = 0; i < S.moveLog.length; i++) {
+                    const m = S.moveLog[i];
+                    const num = String(i + 1).padStart(4);
+                    const player = m.player === "white" ? "White " : "Black ";
+                    const bt = m.block_type.padEnd(5);
+                    const pos = `(${m.position.join(",")})`.padEnd(9);
+                    const orient = m.orientation.toUpperCase().padEnd(6);
+                    const flip = m.flip ? "yes" : "no";
+                    lines.push(
+                        `${num} | ${player} | ${bt} | ${pos} | ${orient} | ${flip}`,
+                    );
+                }
+
+                lines.push("");
+                lines.push("--- Raw JSON ---");
+                lines.push(JSON.stringify(S.moveLog, null, 2));
+
+                const text = lines.join("\n");
+                const blob = new Blob([text], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `block_game_moves_${Date.now()}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                setStatus("Move list exported!");
+            }
+
+            /* ==================================================================
+   BOOT
+   ================================================================== */
+            async function boot() {
+                initThree();
+                await resetGame();
+            }
+            boot();
+        </script>
+    </body>
+</html>

@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4x4x4 Block Stacking Game - Prototype</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 300px;
+            transition: transform 0.3s ease;
+        }
+        #ui-overlay.collapsed {
+            transform: translateX(-320px);
+        }
+        #collapse-btn {
+            position: absolute;
+            right: -40px;
+            top: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 0 8px 8px 0;
+            padding: 10px 8px;
+            cursor: pointer;
+            font-size: 18px;
+            box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+        }
+        #collapse-btn:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+            color: #333;
+        }
+        .info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .controls {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+        .control-label {
+            font-weight: bold;
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 5px;
+            margin-top: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .block-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .block-option {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 12px;
+            background: white;
+        }
+        .block-option:hover {
+            border-color: #4CAF50;
+            background: #f0f0f0;
+        }
+        .block-option.selected {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        .color-preview {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 5px;
+            height: 20px;
+        }
+        .color-box {
+            flex: 1;
+            border: 1px solid #333;
+        }
+        .orientation-selector {
+            margin-top: 10px;
+        }
+        .orientation-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        .orientation-buttons button {
+            flex: 1;
+            font-size: 12px;
+            padding: 6px;
+        }
+        .orientation-buttons button.active {
+            background: #2196F3;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="ui-overlay">
+        <button id="collapse-btn" onclick="toggleUIPanel()">◀</button>
+        <h1>4x4x4 Block Game</h1>
+        <div class="info">
+            Phase 4: Color Stacking Rules<br>
+            Rotate view: Left mouse drag<br>
+            Zoom: Scroll wheel<br>
+            Place block: Click on grid<br>
+            ✓ White can't stack on white<br>
+            ✓ Black can't stack on black<br>
+            ✓ Red can go anywhere
+        </div>
+        
+        <div class="controls">
+            <div class="control-label">View Controls:</div>
+            <button onclick="resetCamera()">Reset View</button>
+            <button onclick="toggleGrid()">Toggle Grid</button>
+            <button onclick="resetGame()" style="background: #f44336;">Clear Board</button>
+            <button id="autoplayBtn" onclick="toggleAutoPlay()" style="background: #2196F3;">▶ Demo Game</button>
+            <button id="autoRotateBtn" onclick="toggleAutoRotate()" style="background: #9C27B0;">↻ Auto-Rotate</button>
+        </div>
+        
+        <div class="controls">
+            <div class="control-label">Select Block Type:</div>
+            <div class="block-selector" id="blockSelector">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="controls orientation-selector">
+            <div class="control-label">Block Orientation:</div>
+            <div class="orientation-buttons">
+                <button id="orientX" onclick="setOrientation('x')">Horizontal</button>
+                <button id="orientZ" onclick="setOrientation('z')" class="active">Vertical</button>
+            </div>
+            <div style="margin-top: 10px; display: flex; gap: 5px;">
+                <button onclick="toggleFlip()" style="flex: 1; background: #FF9800;">
+                    🔄 Flip
+                </button>
+                <button id="rotateBtn" onclick="rotateBlock()" style="flex: 1; background: #9C27B0; display: none;">
+                    ↻ Rotate 90°
+                </button>
+            </div>
+        </div>
+        
+        <div class="status" id="statusMessage">
+            Select a block type and click on the grid to place it
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Color enum for game logic
+        const Color = {
+            BLACK: 'BLACK',
+            WHITE: 'WHITE',
+            RED: 'RED'
+        };
+        
+        // Game state
+        let scene, camera, renderer, controls;
+        let gridHelper, axesHelper;
+        let placedBlocks = [];
+        let selectedBlockType = null;
+        let selectedOrientation = 'z'; // default to vertical
+        let selectedFlip = false; // whether to flip the block colors
+        let selectedRotation = 0; // rotation in degrees (0, 90, 180, 270) for horizontal blocks
+        let showGrid = true;
+        let occupiedPositions = new Set(); // Track which 1x1x1 positions are filled
+        let raycaster, mouse;
+        let ghostBlock = null; // Preview block that follows cursor
+        let autoPlayInterval = null; // For animated demo
+        let isAutoPlaying = false;
+        let isAutoRotating = false; // For auto-rotate feature
+        let gridObjects = []; // Store grid elements for toggle
+        
+        // Block types matching the game
+        const blockTypes = [
+            { name: 'All Black', color1: 0x000000, color2: 0x000000, count: 3 },
+            { name: 'All White', color1: 0xFFFFFF, color2: 0xFFFFFF, count: 3 },
+            { name: 'Black/White', color1: 0x000000, color2: 0xFFFFFF, count: 8 },
+            { name: 'Black/Red', color1: 0x000000, color2: 0xFF0000, count: 9 },
+            { name: 'White/Red', color1: 0xFFFFFF, color2: 0xFF0000, count: 9 }
+        ];
+        
+        // Initialize Three.js scene
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(
+                75, 
+                window.innerWidth / window.innerHeight, 
+                0.1, 
+                1000
+            );
+            camera.position.set(6, 6, 6);
+            camera.lookAt(2, 2, 2);
+            
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(10, 10, 10);
+            scene.add(directionalLight);
+            
+            // Add a second light for better visibility
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+            directionalLight2.position.set(-10, -10, -10);
+            scene.add(directionalLight2);
+            
+            // Create 4x4x4 grid visualization
+            createGrid();
+            
+            // Add axes helper
+            axesHelper = new THREE.AxesHelper(5);
+            scene.add(axesHelper);
+            
+            // Initialize raycaster for mouse picking
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // Add click handler for placing blocks
+            renderer.domElement.addEventListener('click', onCanvasClick);
+            
+            // Add mouse move handler for ghost preview
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            
+            // Setup OrbitControls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.target.set(2, 2, 2); // Look at center of grid
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 3;
+            controls.maxDistance = 20;
+            controls.maxPolarAngle = Math.PI / 2 + 0.5; // Prevent going below ground
+            
+            // Track when user is dragging to prevent click events
+            let isDraggingCamera = false;
+            controls.addEventListener('start', () => { isDraggingCamera = true; });
+            controls.addEventListener('end', () => { 
+                // Delay slightly to prevent immediate click after drag
+                setTimeout(() => { isDraggingCamera = false; }, 100);
+            });
+            
+            // Store drag state globally
+            window.cameraIsDragging = () => isDraggingCamera;
+            
+            controls.update();
+            
+            // Populate block selector
+            populateBlockSelector();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start animation loop
+            animate();
+        }
+        
+        function createGrid() {
+            // Create a wireframe box to show the 4x4x4 boundaries
+            const boxGeometry = new THREE.BoxGeometry(4, 4, 4);
+            const boxEdges = new THREE.EdgesGeometry(boxGeometry);
+            const boxLine = new THREE.LineSegments(
+                boxEdges, 
+                new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 })
+            );
+            // Convert game center (2,2,2) to Three.js (2, 2, 2) - center stays same
+            boxLine.position.set(2, 2, 2);
+            gridHelper = boxLine;
+            scene.add(boxLine);
+            gridObjects.push(boxLine);
+            
+            // Create grid lines for each level (z-height in game, y-height in Three.js)
+            for (let gameZ = 0; gameZ <= 4; gameZ++) {
+                // Horizontal grid at each height
+                const size = 4;
+                const divisions = 4;
+                const grid = new THREE.GridHelper(size, divisions, 0x888888, 0xcccccc);
+                // GridHelper is Y-up by default, position it at the right height
+                grid.position.set(2, gameZ, 2);
+                scene.add(grid);
+                gridObjects.push(grid);
+            }
+            
+            // Add small spheres at grid intersections to show placement points
+            // Convert game coordinates to Three.js coordinates for proper positioning
+            for (let x = 0; x <= 4; x++) {
+                for (let y = 0; y <= 4; y++) {
+                    for (let z = 0; z <= 4; z++) {
+                        const geometry = new THREE.SphereGeometry(0.05, 8, 8);
+                        const material = new THREE.MeshBasicMaterial({ color: 0x666666 });
+                        const sphere = new THREE.Mesh(geometry, material);
+                        // Convert game(x,y,z) to Three.js(x, z, y)
+                        sphere.position.set(x, z, y);
+                        sphere.userData = { gameX: x, gameY: y, gameZ: z }; // Store game coordinates
+                        scene.add(sphere);
+                        gridObjects.push(sphere);
+                    }
+                }
+            }
+        }
+        
+        function setupControls() {
+            // Simple mouse drag controls
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const deltaX = e.clientX - previousMousePosition.x;
+                    const deltaY = e.clientY - previousMousePosition.y;
+                    
+                    // Rotate camera around the center point (2, 2, 2)
+                    const center = new THREE.Vector3(2, 2, 2);
+                    const offset = camera.position.clone().sub(center);
+                    
+                    // Rotate around Y axis (horizontal mouse movement)
+                    // Reverse horizontal rotation
+                    const quaternionY = new THREE.Quaternion();
+                    quaternionY.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -deltaX * 0.005);
+                    offset.applyQuaternion(quaternionY);
+                    
+                    // Rotate around X axis (vertical mouse movement)
+                    // Reverse vertical rotation
+                    const right = new THREE.Vector3(1, 0, 0);
+                    right.applyQuaternion(quaternionY);
+                    const quaternionX = new THREE.Quaternion();
+                    quaternionX.setFromAxisAngle(right, -deltaY * 0.005);
+                    offset.applyQuaternion(quaternionX);
+                    
+                    camera.position.copy(center.clone().add(offset));
+                    camera.lookAt(center);
+                    
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
+            });
+            
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            // Zoom with mouse wheel
+            renderer.domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const center = new THREE.Vector3(2, 2, 2);
+                const direction = camera.position.clone().sub(center).normalize();
+                const zoomSpeed = 0.5;
+                
+                if (e.deltaY > 0) {
+                    // Zoom out
+                    camera.position.add(direction.multiplyScalar(zoomSpeed));
+                } else {
+                    // Zoom in
+                    camera.position.sub(direction.multiplyScalar(zoomSpeed));
+                }
+            });
+        }
+        
+        function populateBlockSelector() {
+            const selector = document.getElementById('blockSelector');
+            
+            blockTypes.forEach((blockType, index) => {
+                const option = document.createElement('div');
+                option.className = 'block-option';
+                option.onclick = () => selectBlockType(index);
+                
+                // Create color preview
+                const preview = document.createElement('div');
+                preview.className = 'color-preview';
+                
+                const box1 = document.createElement('div');
+                box1.className = 'color-box';
+                box1.style.backgroundColor = '#' + blockType.color1.toString(16).padStart(6, '0');
+                
+                const box2 = document.createElement('div');
+                box2.className = 'color-box';
+                box2.style.backgroundColor = '#' + blockType.color2.toString(16).padStart(6, '0');
+                
+                preview.appendChild(box1);
+                preview.appendChild(box2);
+                option.appendChild(preview);
+                
+                const label = document.createElement('div');
+                label.textContent = blockType.name;
+                option.appendChild(label);
+                
+                const count = document.createElement('div');
+                count.style.fontSize = '10px';
+                count.style.color = '#999';
+                count.textContent = `(${blockType.count} available)`;
+                option.appendChild(count);
+                
+                selector.appendChild(option);
+            });
+        }
+        
+        function selectBlockType(index) {
+            selectedBlockType = index;
+            
+            // Update UI
+            const options = document.querySelectorAll('.block-option');
+            options.forEach((opt, i) => {
+                if (i === index) {
+                    opt.classList.add('selected');
+                } else {
+                    opt.classList.remove('selected');
+                }
+            });
+            
+            updateStatus(`Selected: ${blockTypes[index].name}. Click on grid to place.`);
+        }
+        
+        function setOrientation(orient) {
+            selectedOrientation = orient;
+            selectedRotation = 0; // Reset rotation when changing orientation
+            
+            // Update UI
+            document.getElementById('orientX').classList.remove('active');
+            document.getElementById('orientZ').classList.remove('active');
+            document.getElementById('orient' + orient.toUpperCase()).classList.add('active');
+            
+            // Show/hide rotate button based on orientation
+            const rotateBtn = document.getElementById('rotateBtn');
+            if (orient === 'x') {
+                rotateBtn.style.display = 'block';
+            } else {
+                rotateBtn.style.display = 'none';
+            }
+            
+            const orientNames = { x: 'Horizontal', z: 'Vertical' };
+            updateStatus(`Orientation: ${orientNames[orient]}`);
+            
+            // Update ghost block
+            removeGhostBlock();
+        }
+        
+        function toggleFlip() {
+            selectedFlip = !selectedFlip;
+            const flipStatus = selectedFlip ? 'FLIPPED' : 'normal';
+            updateStatus(`Colors ${flipStatus}`);
+            
+            // Update ghost block
+            removeGhostBlock();
+        }
+        
+        function rotateBlock() {
+            selectedRotation = (selectedRotation + 90) % 360;
+            updateStatus(`Rotation: ${selectedRotation}°`);
+            
+            // Update ghost block
+            removeGhostBlock();
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('statusMessage').textContent = message;
+        }
+        
+        function onMouseMove(event) {
+            // Skip if no block type selected
+            if (selectedBlockType === null) {
+                removeGhostBlock();
+                return;
+            }
+            
+            // Skip if dragging (rotating camera with OrbitControls)
+            if (controls.enabled && Date.now() - controls.lastInteractionTime < 100) {
+                removeGhostBlock();
+                return;
+            }
+            
+            // Calculate mouse position
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // Find where block would be placed
+            const placementPos = findPlacementPosition();
+            
+            if (placementPos) {
+                updateGhostBlock(placementPos.x, placementPos.y, placementPos.z);
+            } else {
+                removeGhostBlock();
+            }
+        }
+        
+        function findPlacementPosition() {
+            // Same logic as onCanvasClick but returns position instead of placing
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Check for block face intersection
+            const blockMeshes = [];
+            for (let block of placedBlocks) {
+                blockMeshes.push(block.cube1);
+                blockMeshes.push(block.cube2);
+            }
+            
+            const intersects = raycaster.intersectObjects(blockMeshes);
+            
+            if (intersects.length > 0) {
+                const intersection = intersects[0];
+                const clickedPoint = intersection.point;
+                const normal = intersection.face.normal.clone();
+                normal.transformDirection(intersection.object.matrixWorld);
+                
+                const adjacentPoint = clickedPoint.clone().add(normal.multiplyScalar(0.6));
+                
+                const gameX = Math.round(adjacentPoint.x);
+                const gameY = Math.round(adjacentPoint.z);
+                const gameZ = Math.round(adjacentPoint.y);
+                
+                const clampedX = Math.max(0, Math.min(3, gameX));
+                const clampedY = Math.max(0, Math.min(3, gameY));
+                const clampedZ = Math.max(0, Math.min(3, gameZ));
+                
+                return applyGravity(clampedX, clampedY, clampedZ);
+            }
+            
+            // Fall back to grid point
+            const gridPoint = findClosestGridPoint();
+            if (gridPoint) {
+                return applyGravity(gridPoint.x, gridPoint.y, gridPoint.z);
+            }
+            
+            return null;
+        }
+        
+        function updateGhostBlock(x, y, z) {
+            // Remove old ghost block
+            removeGhostBlock();
+            
+            // Create new ghost block
+            const blockType = blockTypes[selectedBlockType];
+            
+            // Check if placement would be valid
+            const positions = getBlockPositions(x, y, z, selectedOrientation, selectedRotation);
+            let isValid = true;
+            
+            // Check bounds and occupancy
+            for (let pos of positions) {
+                if (pos.x < 0 || pos.x >= 4 || pos.y < 0 || pos.y >= 4 || pos.z < 0 || pos.z >= 4) {
+                    isValid = false;
+                    break;
+                }
+                const key = `${pos.x},${pos.y},${pos.z}`;
+                if (occupiedPositions.has(key)) {
+                    isValid = false;
+                    break;
+                }
+            }
+            
+            // Check stacking rules
+            if (isValid) {
+                for (let i = 0; i < positions.length; i++) {
+                    const pos = positions[i];
+                    if (pos.z === 0) continue;
+                    
+                    const isFirstHalf = (i === 0);
+                    let colorAbove;
+                    if (selectedFlip) {
+                        colorAbove = isFirstHalf ? blockType.color2 : blockType.color1;
+                    } else {
+                        colorAbove = isFirstHalf ? blockType.color1 : blockType.color2;
+                    }
+                    
+                    let colorAboveEnum;
+                    if (colorAbove === 0x000000) colorAboveEnum = Color.BLACK;
+                    else if (colorAbove === 0xFFFFFF) colorAboveEnum = Color.WHITE;
+                    else if (colorAbove === 0xFF0000) colorAboveEnum = Color.RED;
+                    
+                    const colorBelow = getColorAtPosition(pos.x, pos.y, pos.z - 1);
+                    
+                    if (colorBelow !== null && colorAboveEnum !== Color.RED) {
+                        if (colorAboveEnum === Color.WHITE && colorBelow === Color.WHITE) {
+                            isValid = false;
+                            break;
+                        }
+                        if (colorAboveEnum === Color.BLACK && colorBelow === Color.BLACK) {
+                            isValid = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (!isValid) {
+                return; // Don't show ghost if placement is invalid
+            }
+            
+            // Create ghost cubes
+            const size = 0.95;
+            const firstColor = selectedFlip ? blockType.color2 : blockType.color1;
+            const secondColor = selectedFlip ? blockType.color1 : blockType.color2;
+            
+            const geometry1 = new THREE.BoxGeometry(size, size, size);
+            const geometry2 = new THREE.BoxGeometry(size, size, size);
+            
+            // Transparent materials for ghost effect
+            const material1 = new THREE.MeshPhongMaterial({ 
+                color: firstColor,
+                transparent: true,
+                opacity: 0.3,
+                shininess: 30
+            });
+            const cube1 = new THREE.Mesh(geometry1, material1);
+            
+            const material2 = new THREE.MeshPhongMaterial({ 
+                color: secondColor,
+                transparent: true,
+                opacity: 0.3,
+                shininess: 30
+            });
+            const cube2 = new THREE.Mesh(geometry2, material2);
+            
+            // Position the cubes (same logic as createVisualBlock)
+            if (selectedOrientation === 'z') {
+                // Vertical
+                cube1.position.set(x + 0.5, z + 0.5, y + 0.5);
+                cube2.position.set(x + 0.5, z + 1.5, y + 0.5);
+            } else {
+                // Horizontal
+                cube1.position.set(x + 0.5, z + 0.5, y + 0.5);
+                cube2.position.set(x + 1.5, z + 0.5, y + 0.5);
+            }
+            
+            // Apply rotation
+            if (selectedOrientation === 'x' && selectedRotation !== 0) {
+                const centerX = x + 0.5;
+                const centerZ = y + 0.5;
+                const centerY = z + 0.5;
+                const radians = (selectedRotation * Math.PI) / 180;
+                
+                const dx1 = cube1.position.x - centerX;
+                const dz1 = cube1.position.z - centerZ;
+                cube1.position.x = centerX + dx1 * Math.cos(radians) - dz1 * Math.sin(radians);
+                cube1.position.z = centerZ + dx1 * Math.sin(radians) + dz1 * Math.cos(radians);
+                cube1.rotation.y = radians;
+                
+                const dx2 = cube2.position.x - centerX;
+                const dz2 = cube2.position.z - centerZ;
+                cube2.position.x = centerX + dx2 * Math.cos(radians) - dz2 * Math.sin(radians);
+                cube2.position.z = centerZ + dx2 * Math.sin(radians) + dz2 * Math.cos(radians);
+                cube2.rotation.y = radians;
+            }
+            
+            // Add wireframe
+            const edges1 = new THREE.EdgesGeometry(geometry1);
+            const line1 = new THREE.LineSegments(edges1, new THREE.LineBasicMaterial({ 
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.5
+            }));
+            cube1.add(line1);
+            
+            const edges2 = new THREE.EdgesGeometry(geometry2);
+            const line2 = new THREE.LineSegments(edges2, new THREE.LineBasicMaterial({ 
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.5
+            }));
+            cube2.add(line2);
+            
+            scene.add(cube1);
+            scene.add(cube2);
+            
+            ghostBlock = { cube1, cube2 };
+        }
+        
+        function removeGhostBlock() {
+            if (ghostBlock) {
+                scene.remove(ghostBlock.cube1);
+                scene.remove(ghostBlock.cube2);
+                ghostBlock = null;
+            }
+        }
+        
+        function onCanvasClick(event) {
+            // Don't place if dragging camera
+            if (window.cameraIsDragging && window.cameraIsDragging()) {
+                return;
+            }
+            
+            // Don't place if clicking on UI
+            if (event.target.id !== renderer.domElement.id && 
+                event.target !== renderer.domElement) {
+                return;
+            }
+            
+            // Need a block type selected
+            if (selectedBlockType === null) {
+                updateStatus('Please select a block type first!');
+                return;
+            }
+            
+            // Calculate mouse position in normalized device coordinates
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // Try to find a clicked block face first
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Get all block meshes for intersection testing
+            const blockMeshes = [];
+            for (let block of placedBlocks) {
+                blockMeshes.push(block.cube1);
+                blockMeshes.push(block.cube2);
+            }
+            
+            const intersects = raycaster.intersectObjects(blockMeshes);
+            
+            if (intersects.length > 0) {
+                // Clicked on a block face!
+                const intersection = intersects[0];
+                const clickedPoint = intersection.point;
+                const normal = intersection.face.normal.clone();
+                
+                // Transform normal to world space
+                normal.transformDirection(intersection.object.matrixWorld);
+                
+                // Calculate the position adjacent to the clicked face
+                // Move slightly along the normal to get the next grid position
+                const adjacentPoint = clickedPoint.clone().add(normal.multiplyScalar(0.6));
+                
+                // Convert Three.js coordinates back to game coordinates
+                // Three.js (x, y, z) -> Game (x, z, y)
+                const gameX = Math.round(adjacentPoint.x);
+                const gameY = Math.round(adjacentPoint.z);
+                const gameZ = Math.round(adjacentPoint.y);
+                
+                // Clamp to valid range
+                const clampedX = Math.max(0, Math.min(3, gameX));
+                const clampedY = Math.max(0, Math.min(3, gameY));
+                const clampedZ = Math.max(0, Math.min(3, gameZ));
+                
+                // Apply gravity from this position
+                const droppedPoint = applyGravity(clampedX, clampedY, clampedZ);
+                placeBlock(droppedPoint.x, droppedPoint.y, droppedPoint.z);
+                return;
+            }
+            
+            // No block face clicked, fall back to finding closest grid point
+            const gridPoint = findClosestGridPoint();
+            
+            if (gridPoint) {
+                // Apply gravity - drop the block to the lowest valid position
+                const droppedPoint = applyGravity(gridPoint.x, gridPoint.y, gridPoint.z);
+                placeBlock(droppedPoint.x, droppedPoint.y, droppedPoint.z);
+            }
+        }
+        
+        function applyGravity(x, y, z) {
+            // Drop the block as far down as it can go
+            // Start from z and work down to find the lowest valid position
+            for (let dropZ = 0; dropZ <= z; dropZ++) {
+                const positions = getBlockPositions(x, y, dropZ, selectedOrientation, selectedRotation);
+                
+                // Check if all positions are valid and unoccupied
+                let canPlace = true;
+                
+                // Check bounds
+                for (let pos of positions) {
+                    if (pos.x < 0 || pos.x >= 4 || pos.y < 0 || pos.y >= 4 || pos.z < 0 || pos.z >= 4) {
+                        canPlace = false;
+                        break;
+                    }
+                }
+                
+                // Check if occupied
+                if (canPlace) {
+                    for (let pos of positions) {
+                        const key = `${pos.x},${pos.y},${pos.z}`;
+                        if (occupiedPositions.has(key)) {
+                            canPlace = false;
+                            break;
+                        }
+                    }
+                }
+                
+                // If we can't place at this level, try the next one up
+                if (!canPlace) {
+                    continue;
+                }
+                
+                // Check if there's support at this level
+                const hasSupport = checkSupport(positions);
+                
+                if (hasSupport) {
+                    // This is the lowest valid position
+                    return { x, y, z: dropZ };
+                }
+            }
+            
+            // If we couldn't find a valid position from 0 to z, return original
+            return { x, y, z };
+        }
+        
+        function getColorAtPosition(x, y, z) {
+            // Find which block occupies this position and return its color at that position
+            for (let block of placedBlocks) {
+                const positions = getBlockPositions(block.x, block.y, block.z, block.orientation, block.rotation);
+                
+                for (let i = 0; i < positions.length; i++) {
+                    const pos = positions[i];
+                    if (pos.x === x && pos.y === y && pos.z === z) {
+                        // Found the position - determine which color
+                        const blockType = block.blockType;
+                        
+                        // Which half of the block is this?
+                        const isFirstHalf = (i === 0);
+                        
+                        // Account for flip
+                        let color;
+                        if (block.flip) {
+                            color = isFirstHalf ? blockType.color2 : blockType.color1;
+                        } else {
+                            color = isFirstHalf ? blockType.color1 : blockType.color2;
+                        }
+                        
+                        // Convert color number to Color enum
+                        if (color === 0x000000) return Color.BLACK;
+                        if (color === 0xFFFFFF) return Color.WHITE;
+                        if (color === 0xFF0000) return Color.RED;
+                    }
+                }
+            }
+            
+            return null; // Position not occupied
+        }
+        
+        function checkSupport(positions) {
+            // Check if all positions in the block have proper support
+            // BOTH halves must be supported - no cantilevering allowed
+            for (let pos of positions) {
+                if (pos.z === 0) {
+                    // On the ground - always supported
+                    continue;
+                }
+                
+                // Check if there's support below this position
+                const belowKey = `${pos.x},${pos.y},${pos.z - 1}`;
+                
+                // Support can come from:
+                // 1. An already-placed block below
+                const hasExistingSupport = occupiedPositions.has(belowKey);
+                
+                // 2. The other half of THIS block we're placing (if it's below this position)
+                // This only works if that other half is at z=0 or itself has support
+                const hasSelfSupport = positions.some(p => 
+                    p.x === pos.x && p.y === pos.y && p.z === pos.z - 1
+                );
+                
+                // If relying on self-support, need to verify the supporting half has support too
+                if (hasSelfSupport && !hasExistingSupport) {
+                    // The other half is supporting this one, but does it have support?
+                    const supportingHalf = positions.find(p => 
+                        p.x === pos.x && p.y === pos.y && p.z === pos.z - 1
+                    );
+                    
+                    if (supportingHalf.z > 0) {
+                        // The supporting half is not on ground, check if IT has support
+                        const supportingHalfBelowKey = `${supportingHalf.x},${supportingHalf.y},${supportingHalf.z - 1}`;
+                        if (!occupiedPositions.has(supportingHalfBelowKey)) {
+                            return false; // Supporting half doesn't have support - cantilever!
+                        }
+                    }
+                }
+                
+                if (!hasExistingSupport && !hasSelfSupport) {
+                    return false; // No support at all
+                }
+            }
+            
+            return true; // All positions have support
+        }
+        
+        function findClosestGridPoint() {
+            // Update the picking ray with the camera and mouse position
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Find the closest grid intersection point
+            let closestPoint = null;
+            let closestDistance = Infinity;
+            
+            // Check all possible grid points in game coordinates
+            for (let gameX = 0; gameX < 4; gameX++) {
+                for (let gameY = 0; gameY < 4; gameY++) {
+                    for (let gameZ = 0; gameZ < 4; gameZ++) {
+                        // Convert to Three.js coordinates for distance check
+                        const point = new THREE.Vector3(gameX, gameZ, gameY);
+                        const distance = raycaster.ray.distanceToPoint(point);
+                        
+                        if (distance < closestDistance && distance < 0.5) {
+                            closestDistance = distance;
+                            closestPoint = { x: gameX, y: gameY, z: gameZ };
+                        }
+                    }
+                }
+            }
+            
+            return closestPoint;
+        }
+        
+        function placeBlock(x, y, z) {
+            const blockType = blockTypes[selectedBlockType];
+            
+            // Get the two positions this block will occupy (accounting for rotation)
+            const positions = getBlockPositions(x, y, z, selectedOrientation, selectedRotation);
+            
+            // Check if positions are in bounds
+            for (let pos of positions) {
+                if (pos.x < 0 || pos.x >= 4 || pos.y < 0 || pos.y >= 4 || pos.z < 0 || pos.z >= 4) {
+                    updateStatus('❌ Cannot place - out of bounds!');
+                    return;
+                }
+            }
+            
+            // Check if positions already occupied
+            for (let pos of positions) {
+                const key = `${pos.x},${pos.y},${pos.z}`;
+                if (occupiedPositions.has(key)) {
+                    updateStatus('❌ Cannot place - position occupied!');
+                    return;
+                }
+            }
+            
+            // Check for support
+            if (!checkSupport(positions)) {
+                updateStatus('❌ Cannot place - no support below! (cantilevering not allowed)');
+                return;
+            }
+            
+            // Check color stacking rules
+            // For each position in the new block, check what's below it
+            for (let i = 0; i < positions.length; i++) {
+                const pos = positions[i];
+                
+                if (pos.z === 0) continue; // On ground, no stacking rules apply
+                
+                // Get the color at this position of the block being placed
+                const isFirstHalf = (i === 0);
+                let colorAbove;
+                if (selectedFlip) {
+                    colorAbove = isFirstHalf ? blockType.color2 : blockType.color1;
+                } else {
+                    colorAbove = isFirstHalf ? blockType.color1 : blockType.color2;
+                }
+                
+                // Convert to Color enum
+                let colorAboveEnum;
+                if (colorAbove === 0x000000) colorAboveEnum = Color.BLACK;
+                else if (colorAbove === 0xFFFFFF) colorAboveEnum = Color.WHITE;
+                else if (colorAbove === 0xFF0000) colorAboveEnum = Color.RED;
+                
+                // Check what's directly below
+                const colorBelow = getColorAtPosition(pos.x, pos.y, pos.z - 1);
+                
+                if (colorBelow !== null) {
+                    // Red can go on anything
+                    if (colorAboveEnum === Color.RED) {
+                        continue;
+                    }
+                    
+                    // Cannot stack white on white
+                    if (colorAboveEnum === Color.WHITE && colorBelow === Color.WHITE) {
+                        updateStatus('❌ Cannot place - white cannot stack on white!');
+                        return;
+                    }
+                    
+                    // Cannot stack black on black
+                    if (colorAboveEnum === Color.BLACK && colorBelow === Color.BLACK) {
+                        updateStatus('❌ Cannot place - black cannot stack on black!');
+                        return;
+                    }
+                }
+            }
+            
+            // All checks passed - place the block!
+            createVisualBlock(x, y, z, selectedOrientation, blockType, selectedFlip, selectedRotation);
+            
+            // Mark positions as occupied
+            for (let pos of positions) {
+                const key = `${pos.x},${pos.y},${pos.z}`;
+                occupiedPositions.add(key);
+            }
+            
+            // Remove ghost block after placement
+            removeGhostBlock();
+            
+            const rotationText = selectedRotation !== 0 ? ` (rotated ${selectedRotation}°)` : '';
+            updateStatus(`✓ Placed ${blockType.name} at (${x}, ${y}, ${z})${selectedFlip ? ' (flipped)' : ''}${rotationText}`);
+        }
+        
+        function getBlockPositions(x, y, z, orientation, rotation = 0) {
+            // A 1x1x2 block occupies two 1x1x1 positions
+            const pos1 = { x, y, z };
+            let pos2;
+            
+            if (orientation === 'z') {
+                // Vertical - always extends upward
+                pos2 = { x, y, z: z + 1 };
+            } else {
+                // Horizontal (x orientation) - rotation determines direction
+                if (rotation === 0 || rotation === 180) {
+                    pos2 = { x: x + 1, y, z };
+                } else { // 90 or 270
+                    pos2 = { x, y: y + 1, z };
+                }
+            }
+            
+            return [pos1, pos2];
+        }
+        
+        function createVisualBlock(x, y, z, orientation, blockType, flip, rotation) {
+            // Create a 1x1x2 block with two colors
+            const size = 0.95; // Slightly smaller than 1 to see gaps between blocks
+            
+            // Note: Three.js uses Y-up convention, but our game logic uses Z-up
+            // Game coords: x (left-right), y (forward-back), z (up-down)
+            // Three.js coords: x (left-right), y (up-down), z (forward-back)
+            // Conversion: game(x,y,z) -> threejs(x, z, -y) to match view perspective
+            
+            // Determine which color goes where based on flip
+            const firstColor = flip ? blockType.color2 : blockType.color1;
+            const secondColor = flip ? blockType.color1 : blockType.color2;
+            
+            // Create geometry for each half of the block
+            let geometry1 = new THREE.BoxGeometry(size, size, size);
+            let geometry2 = new THREE.BoxGeometry(size, size, size);
+            
+            // First half
+            const material1 = new THREE.MeshPhongMaterial({ 
+                color: firstColor,
+                shininess: 30
+            });
+            const cube1 = new THREE.Mesh(geometry1, material1);
+            
+            // Second half
+            const material2 = new THREE.MeshPhongMaterial({ 
+                color: secondColor,
+                shininess: 30
+            });
+            const cube2 = new THREE.Mesh(geometry2, material2);
+            
+            // Position the two halves
+            // Convert: game(x,y,z) -> threejs(x, z, y) 
+            if (orientation === 'z') {
+                // Vertical - extends upward
+                cube1.position.set(x + 0.5, z + 0.5, y + 0.5);
+                cube2.position.set(x + 0.5, z + 1.5, y + 0.5);
+            } else {
+                // Horizontal - default along X axis
+                cube1.position.set(x + 0.5, z + 0.5, y + 0.5);
+                cube2.position.set(x + 1.5, z + 0.5, y + 0.5);
+            }
+            
+            // Apply rotation for horizontal blocks
+            if (orientation === 'x' && rotation !== 0) {
+                const centerX = x + 0.5;
+                const centerZ = y + 0.5;
+                const centerY = z + 0.5;
+                
+                const radians = (rotation * Math.PI) / 180;
+                
+                // Rotate cube1
+                const dx1 = cube1.position.x - centerX;
+                const dz1 = cube1.position.z - centerZ;
+                cube1.position.x = centerX + dx1 * Math.cos(radians) - dz1 * Math.sin(radians);
+                cube1.position.z = centerZ + dx1 * Math.sin(radians) + dz1 * Math.cos(radians);
+                cube1.rotation.y = radians;
+                
+                // Rotate cube2
+                const dx2 = cube2.position.x - centerX;
+                const dz2 = cube2.position.z - centerZ;
+                cube2.position.x = centerX + dx2 * Math.cos(radians) - dz2 * Math.sin(radians);
+                cube2.position.z = centerZ + dx2 * Math.sin(radians) + dz2 * Math.cos(radians);
+                cube2.rotation.y = radians;
+            }
+            
+            // Add wireframe edges for better visibility
+            const edges1 = new THREE.EdgesGeometry(geometry1);
+            const line1 = new THREE.LineSegments(edges1, new THREE.LineBasicMaterial({ color: 0x000000 }));
+            cube1.add(line1);
+            
+            const edges2 = new THREE.EdgesGeometry(geometry2);
+            const line2 = new THREE.LineSegments(edges2, new THREE.LineBasicMaterial({ color: 0x000000 }));
+            cube2.add(line2);
+            
+            scene.add(cube1);
+            scene.add(cube2);
+            
+            placedBlocks.push({ cube1, cube2, x, y, z, orientation, blockType, flip, rotation });
+        }
+        
+        function resetGame() {
+            // Stop autoplay if running
+            if (isAutoPlaying) {
+                toggleAutoPlay();
+            }
+            
+            // Remove all placed blocks from the scene
+            for (let block of placedBlocks) {
+                scene.remove(block.cube1);
+                scene.remove(block.cube2);
+            }
+            
+            // Clear the arrays
+            placedBlocks = [];
+            occupiedPositions.clear();
+            
+            updateStatus('Board cleared! Place your first block.');
+        }
+        
+        function toggleAutoPlay() {
+            isAutoPlaying = !isAutoPlaying;
+            const btn = document.getElementById('autoplayBtn');
+            
+            if (isAutoPlaying) {
+                btn.textContent = '⏸ Stop Demo';
+                btn.style.background = '#FF5722';
+                updateStatus('🎮 Auto-playing demo...');
+                removeGhostBlock(); // Hide ghost during autoplay
+                playNextAutoMove();
+            } else {
+                btn.textContent = '▶ Demo Game';
+                btn.style.background = '#2196F3';
+                if (autoPlayInterval) {
+                    clearTimeout(autoPlayInterval);
+                    autoPlayInterval = null;
+                }
+                updateStatus('Demo stopped.');
+            }
+        }
+        
+        function playNextAutoMove() {
+            if (!isAutoPlaying) return;
+            
+            // Get all possible valid moves
+            const validMoves = findAllValidMoves();
+            
+            if (validMoves.length === 0) {
+                // Game over - no more valid moves
+                isAutoPlaying = false;
+                const btn = document.getElementById('autoplayBtn');
+                btn.textContent = '▶ Demo Game';
+                btn.style.background = '#2196F3';
+                updateStatus(`Demo complete! Placed ${placedBlocks.length / 2} blocks.`);
+                return;
+            }
+            
+            // Pick a random valid move
+            const move = validMoves[Math.floor(Math.random() * validMoves.length)];
+            
+            // Apply the move
+            selectedBlockType = move.blockType;
+            selectedOrientation = move.orientation;
+            selectedFlip = move.flip;
+            selectedRotation = move.rotation;
+            
+            placeBlock(move.x, move.y, move.z);
+            
+            // Schedule next move
+            autoPlayInterval = setTimeout(playNextAutoMove, 800); // 800ms between moves
+        }
+        
+        function findAllValidMoves() {
+            const moves = [];
+            
+            // Try each block type
+            for (let blockTypeIdx = 0; blockTypeIdx < blockTypes.length; blockTypeIdx++) {
+                // Try all positions
+                for (let x = 0; x < 4; x++) {
+                    for (let y = 0; y < 4; y++) {
+                        for (let z = 0; z < 4; z++) {
+                            // Try both orientations
+                            for (let orientation of ['x', 'z']) {
+                                // Try rotations (only for horizontal)
+                                const rotations = orientation === 'x' ? [0, 90] : [0];
+                                for (let rotation of rotations) {
+                                    // Try both flip states
+                                    for (let flip of [false, true]) {
+                                        // Check if this move is valid
+                                        const positions = getBlockPositions(x, y, z, orientation, rotation);
+                                        
+                                        // Check bounds
+                                        let valid = true;
+                                        for (let pos of positions) {
+                                            if (pos.x < 0 || pos.x >= 4 || pos.y < 0 || pos.y >= 4 || pos.z < 0 || pos.z >= 4) {
+                                                valid = false;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (!valid) continue;
+                                        
+                                        // Check occupancy
+                                        for (let pos of positions) {
+                                            const key = `${pos.x},${pos.y},${pos.z}`;
+                                            if (occupiedPositions.has(key)) {
+                                                valid = false;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (!valid) continue;
+                                        
+                                        // Check support
+                                        if (!checkSupport(positions)) {
+                                            valid = false;
+                                        }
+                                        
+                                        // Check stacking rules
+                                        if (valid) {
+                                            const testBlockType = blockTypes[blockTypeIdx];
+                                            for (let i = 0; i < positions.length; i++) {
+                                                const pos = positions[i];
+                                                if (pos.z === 0) continue;
+                                                
+                                                const isFirstHalf = (i === 0);
+                                                let colorAbove;
+                                                if (flip) {
+                                                    colorAbove = isFirstHalf ? testBlockType.color2 : testBlockType.color1;
+                                                } else {
+                                                    colorAbove = isFirstHalf ? testBlockType.color1 : testBlockType.color2;
+                                                }
+                                                
+                                                let colorAboveEnum;
+                                                if (colorAbove === 0x000000) colorAboveEnum = Color.BLACK;
+                                                else if (colorAbove === 0xFFFFFF) colorAboveEnum = Color.WHITE;
+                                                else if (colorAbove === 0xFF0000) colorAboveEnum = Color.RED;
+                                                
+                                                const colorBelow = getColorAtPosition(pos.x, pos.y, pos.z - 1);
+                                                
+                                                if (colorBelow !== null && colorAboveEnum !== Color.RED) {
+                                                    if (colorAboveEnum === Color.WHITE && colorBelow === Color.WHITE) {
+                                                        valid = false;
+                                                        break;
+                                                    }
+                                                    if (colorAboveEnum === Color.BLACK && colorBelow === Color.BLACK) {
+                                                        valid = false;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        
+                                        if (valid) {
+                                            moves.push({
+                                                blockType: blockTypeIdx,
+                                                x, y, z,
+                                                orientation,
+                                                rotation,
+                                                flip
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return moves;
+        }
+        
+        function resetCamera() {
+            camera.position.set(6, 6, 6);
+            controls.target.set(2, 2, 2);
+            controls.update();
+        }
+        
+        function toggleGrid() {
+            showGrid = !showGrid;
+            
+            // Toggle visibility of all grid objects
+            for (let obj of gridObjects) {
+                obj.visible = showGrid;
+            }
+            
+            updateStatus(`Grid ${showGrid ? 'shown' : 'hidden'}`);
+        }
+        
+        function toggleUIPanel() {
+            const panel = document.getElementById('ui-overlay');
+            const btn = document.getElementById('collapse-btn');
+            panel.classList.toggle('collapsed');
+            
+            // Change arrow direction
+            if (panel.classList.contains('collapsed')) {
+                btn.textContent = '▶';
+            } else {
+                btn.textContent = '◀';
+            }
+        }
+        
+        function toggleAutoRotate() {
+            isAutoRotating = !isAutoRotating;
+            const btn = document.getElementById('autoRotateBtn');
+            
+            if (isAutoRotating) {
+                btn.textContent = '⏸ Stop Rotate';
+                btn.style.background = '#673AB7';
+                controls.autoRotate = true;
+                controls.autoRotateSpeed = 2.0;
+                updateStatus('🔄 Auto-rotating...');
+            } else {
+                btn.textContent = '↻ Auto-Rotate';
+                btn.style.background = '#9C27B0';
+                controls.autoRotate = false;
+                updateStatus('Auto-rotate stopped.');
+            }
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // Update OrbitControls
+            renderer.render(scene, camera);
+        }
+        
+        // Start the application
+        init();
+    </script>
+</body>
+</html>
