@@ -36,10 +36,9 @@ class AntiRandomStrategy(Strategy):
 
     # ── helpers ────────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _exterior_faces(x: int, y: int, z: int) -> int:
+    def _exterior_faces(self, x: int, y: int, z: int) -> int:
         """Count how many of the 5 scored exterior faces this cell touches."""
-        return exterior_faces(x, y, z)
+        return exterior_faces(x, y, z, self._bounds)
 
     # ── 5-tier smart sampling ─────────────────────────────────────────────
 
@@ -174,6 +173,7 @@ class AntiRandomStrategy(Strategy):
 
         my_color = Color.WHITE if player == Player.WHITE else Color.BLACK
         opp_color = Color.BLACK if player == Player.WHITE else Color.WHITE
+        self._bounds = game_state.scoring_bounds()
 
         candidates = legal_moves
         if len(legal_moves) > self.MAX_CANDIDATES:

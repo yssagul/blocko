@@ -39,12 +39,11 @@ class StrategicAIStrategy(Strategy):
     ENDGAME_THRESHOLD = 12
     MAX_CANDIDATES = 150
 
-    # ── helpers ────────────────────────────────────────────────────────────
+    # ── helpers (bounds-aware for OpenGrid support) ────────────────────────
 
-    @staticmethod
-    def _exterior_faces(x: int, y: int, z: int) -> int:
+    def _exterior_faces(self, x: int, y: int, z: int) -> int:
         """Count how many of the 5 scored exterior faces this cell touches."""
-        return exterior_faces(x, y, z)
+        return exterior_faces(x, y, z, self._bounds)
 
     # ── face-count cache (per turn) ───────────────────────────────────────
 
@@ -54,6 +53,7 @@ class StrategicAIStrategy(Strategy):
         Count cells of each colour on each of the 5 scored faces.
         O(80) — runs once per choose_move() call, not per candidate.
         """
+        bx_min, bx_max, by_min, by_max, bz_min, bz_max = self._bounds
         faces = {
             'top':   {'my': 0, 'opp': 0},
             'front': {'my': 0, 'opp': 0},
@@ -62,11 +62,11 @@ class StrategicAIStrategy(Strategy):
             'right': {'my': 0, 'opp': 0},
         }
         face_positions = {
-            'top':   [(x, y, 3) for x in range(4) for y in range(4)],
-            'front': [(x, 0, z) for x in range(4) for z in range(4)],
-            'back':  [(x, 3, z) for x in range(4) for z in range(4)],
-            'left':  [(0, y, z) for y in range(4) for z in range(4)],
-            'right': [(3, y, z) for y in range(4) for z in range(4)],
+            'top':   [(x, y, bz_max) for x in range(bx_min, bx_max + 1) for y in range(by_min, by_max + 1)],
+            'front': [(x, by_min, z) for x in range(bx_min, bx_max + 1) for z in range(bz_min, bz_max + 1)],
+            'back':  [(x, by_max, z) for x in range(bx_min, bx_max + 1) for z in range(bz_min, bz_max + 1)],
+            'left':  [(bx_min, y, z) for y in range(by_min, by_max + 1) for z in range(bz_min, bz_max + 1)],
+            'right': [(bx_max, y, z) for y in range(by_min, by_max + 1) for z in range(bz_min, bz_max + 1)],
         }
         for face_name, positions in face_positions.items():
             for pos in positions:
@@ -212,12 +212,13 @@ class StrategicAIStrategy(Strategy):
 
         # --- C8: Face coverage bonus (+2/underserved face) ---  [W5]
         if hasattr(self, '_face_counts'):
+            _bx_min, _bx_max, _by_min, _by_max, _, _bz_max = self._bounds
             face_map = {
-                'top':   lambda x, y, z: z == 3,
-                'front': lambda x, y, z: y == 0,
-                'back':  lambda x, y, z: y == 3,
-                'left':  lambda x, y, z: x == 0,
-                'right': lambda x, y, z: x == 3,
+                'top':   lambda x, y, z, _bz=_bz_max: z == _bz,
+                'front': lambda x, y, z, _by=_by_min: y == _by,
+                'back':  lambda x, y, z, _by=_by_max: y == _by,
+                'left':  lambda x, y, z, _bx=_bx_min: x == _bx,
+                'right': lambda x, y, z, _bx=_bx_max: x == _bx,
             }
             for pos, color, faces in cell_info:
                 if color == my_color:
@@ -228,9 +229,10 @@ class StrategicAIStrategy(Strategy):
                                 score += 2
 
         # --- C9: Constraint propagation (z=2 → z=3 forcing) ---  [W4]
+        _bx_min, _bx_max, _by_min, _by_max, _, _ = self._bounds
         for pos, color, faces in cell_info:
             x, y, z = pos
-            is_edge = (x == 0 or x == 3 or y == 0 or y == 3)
+            is_edge = (x == _bx_min or x == _bx_max or y == _by_min or y == _by_max)
             if z == 2 and is_edge:
                 above_faces = self._exterior_faces(x, y, 3)
                 if above_faces >= 2:
@@ -263,7 +265,7 @@ class StrategicAIStrategy(Strategy):
         # Edge column ground-floor contestation
         for pos, color, faces in cell_info:
             x, y, z = pos
-            if z == 0 and (x == 0 or x == 3 or y == 0 or y == 3):
+            if z == 0 and (x == _bx_min or x == _bx_max or y == _by_min or y == _by_max):
                 if (x, y, 0) not in game_state.grid:
                     score += 2
 
@@ -281,8 +283,8 @@ class StrategicAIStrategy(Strategy):
         # --- C12: Edge column race priority ---  [W3, W5, W6]
         for pos, color, faces in cell_info:
             x, y, z = pos
-            is_edge = (x == 0 or x == 3 or y == 0 or y == 3)
-            is_corner = (x in {0, 3}) and (y in {0, 3})
+            is_edge = (x == _bx_min or x == _bx_max or y == _by_min or y == _by_max)
+            is_corner = (x in {_bx_min, _bx_max}) and (y in {_by_min, _by_max})
             if z == 0 and is_edge and color == my_color:
                 score += 2
                 if is_corner:
@@ -364,6 +366,7 @@ class StrategicAIStrategy(Strategy):
 
         my_color  = Color.WHITE if player == Player.WHITE else Color.BLACK
         opp_color = Color.BLACK if player == Player.WHITE else Color.WHITE
+        self._bounds = game_state.scoring_bounds()
 
         remaining = len(game_state.remaining_blocks)
 

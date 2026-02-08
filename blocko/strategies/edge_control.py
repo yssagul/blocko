@@ -28,14 +28,15 @@ class EdgeControlStrategy(Strategy):
             return None
 
         my_color = Color.WHITE if player == Player.WHITE else Color.BLACK
+        bx_min, bx_max, by_min, by_max, _bz_min, bz_max = game_state.scoring_bounds()
 
         def score_position(pos):
             """Score based on how many exterior faces this position has."""
             x, y, z = pos
             score = 0
-            if x == 0 or x == 3: score += 1
-            if y == 0 or y == 3: score += 1
-            if z == 3: score += 1  # Top (not bottom)
+            if x == bx_min or x == bx_max: score += 1
+            if y == by_min or y == by_max: score += 1
+            if z == bz_max: score += 1  # Top (not bottom)
             return score
 
         best_score = float('-inf')

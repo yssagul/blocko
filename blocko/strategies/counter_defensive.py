@@ -50,27 +50,26 @@ class CounterDefensiveStrategy(Strategy):
     EARLY_GAME_THRESHOLD = 20   # blocks remaining
     MID_GAME_THRESHOLD = 14
 
-    # ── helpers ────────────────────────────────────────────────────────────
+    # ── helpers (bounds-aware for OpenGrid support) ────────────────────────
 
-    @staticmethod
-    def _exterior_faces(x: int, y: int, z: int) -> int:
+    def _exterior_faces(self, x: int, y: int, z: int) -> int:
         """Count how many of the 5 scored exterior faces this cell touches."""
-        return exterior_faces(x, y, z)
+        return exterior_faces(x, y, z, self._bounds)
 
-    @staticmethod
-    def _is_interior(x: int, y: int, z: int) -> bool:
+    def _is_interior(self, x: int, y: int, z: int) -> bool:
         """True if the cell touches zero scored exterior faces."""
-        return (1 <= x <= 2) and (1 <= y <= 2) and (z < 3)
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
+        return (bx_min < x < bx_max) and (by_min < y < by_max) and (z < 3)
 
-    @staticmethod
-    def _is_edge_column(x: int, y: int) -> bool:
-        """True if (x, y) is on the perimeter of the 4×4 grid."""
-        return x == 0 or x == 3 or y == 0 or y == 3
+    def _is_edge_column(self, x: int, y: int) -> bool:
+        """True if (x, y) is on the perimeter of the scoring box."""
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
+        return x == bx_min or x == bx_max or y == by_min or y == by_max
 
-    @staticmethod
-    def _is_corner_column(x: int, y: int) -> bool:
-        """True if (x, y) is a corner of the 4×4 grid."""
-        return (x in (0, 3)) and (y in (0, 3))
+    def _is_corner_column(self, x: int, y: int) -> bool:
+        """True if (x, y) is a corner of the scoring box."""
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
+        return (x in (bx_min, bx_max)) and (y in (by_min, by_max))
 
     # ── board-state scan (once per turn) ──────────────────────────────────
 
@@ -80,6 +79,8 @@ class CounterDefensiveStrategy(Strategy):
         Pre-compute board-level signals for context-aware evaluation.
         Cost: O(64) cell lookups — runs once per choose_move() call.
         """
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
+
         opp_burial_count = 0    # how many of MY cells are buried interior
         my_burial_count = 0     # how many of OPP cells I have buried
         poisoned_columns = set()      # (x,y) where MY color is at z=2
@@ -87,8 +88,8 @@ class CounterDefensiveStrategy(Strategy):
         open_z3_edge_cells = set()    # (x,y) edge columns with z=3 open + z=2 supported
         available_z3_corners = set()  # (x,y) corner columns with z=3 open + z=2 supported
 
-        for x in range(4):
-            for y in range(4):
+        for x in range(bx_min, bx_max + 1):
+            for y in range(by_min, by_max + 1):
                 for z in range(3):  # z=0,1,2
                     pos = (x, y, z)
                     if pos in game_state.grid:
@@ -138,11 +139,11 @@ class CounterDefensiveStrategy(Strategy):
             'right': {'my': 0, 'opp': 0},
         }
         face_positions = {
-            'top':   [(x, y, 3) for x in range(4) for y in range(4)],
-            'front': [(x, 0, z) for x in range(4) for z in range(4)],
-            'back':  [(x, 3, z) for x in range(4) for z in range(4)],
-            'left':  [(0, y, z) for y in range(4) for z in range(4)],
-            'right': [(3, y, z) for y in range(4) for z in range(4)],
+            'top':   [(x, y, 3) for x in range(bx_min, bx_max + 1) for y in range(by_min, by_max + 1)],
+            'front': [(x, by_min, z) for x in range(bx_min, bx_max + 1) for z in range(4)],
+            'back':  [(x, by_max, z) for x in range(bx_min, bx_max + 1) for z in range(4)],
+            'left':  [(bx_min, y, z) for y in range(by_min, by_max + 1) for z in range(4)],
+            'right': [(bx_max, y, z) for y in range(by_min, by_max + 1) for z in range(4)],
         }
         for face_name, positions in face_positions.items():
             for pos in positions:
@@ -528,12 +529,13 @@ class CounterDefensiveStrategy(Strategy):
 
         # ── C8: Face Coverage Balance ─────────────────────────────────
         # Reward placing own color on underserved faces.
+        _bx_min, _bx_max, _by_min, _by_max, _, _bz_max = self._bounds
         face_map = {
-            'top':   lambda x, y, z: z == 3,
-            'front': lambda x, y, z: y == 0,
-            'back':  lambda x, y, z: y == 3,
-            'left':  lambda x, y, z: x == 0,
-            'right': lambda x, y, z: x == 3,
+            'top':   lambda x, y, z, _bz=_bz_max: z == _bz,
+            'front': lambda x, y, z, _by=_by_min: y == _by,
+            'back':  lambda x, y, z, _by=_by_max: y == _by,
+            'left':  lambda x, y, z, _bx=_bx_min: x == _bx,
+            'right': lambda x, y, z, _bx=_bx_max: x == _bx,
         }
         fc = scan['face_counts']
         for pos, color, faces in cell_info:
@@ -578,6 +580,7 @@ class CounterDefensiveStrategy(Strategy):
         my_color = Color.WHITE if player == Player.WHITE else Color.BLACK
         opp_color = Color.BLACK if player == Player.WHITE else Color.WHITE
         blocks_remaining = len(game_state.remaining_blocks)
+        self._bounds = game_state.scoring_bounds()
 
         # Pre-compute board state once per turn
         scan = self._scan_board_state(game_state, my_color, opp_color)

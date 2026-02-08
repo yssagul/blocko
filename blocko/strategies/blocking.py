@@ -44,6 +44,8 @@ class BlockOpponentStrategy(Strategy):
         my_score_before = w_before if player == Player.WHITE else b_before
         opp_score_before = b_before if player == Player.WHITE else w_before
 
+        bounds = game_state.scoring_bounds()
+
         candidates = legal_moves
         if len(legal_moves) > self.MAX_CANDIDATES:
             candidates = random.sample(legal_moves, self.MAX_CANDIDATES)
@@ -74,13 +76,13 @@ class BlockOpponentStrategy(Strategy):
                 if color == opponent_color and z < 3:
                     above = (x, y, z + 1)
                     if above not in game_state.grid and above not in set(temp_block.get_occupied_positions()):
-                        above_vis = exterior_faces(x, y, z + 1)
+                        above_vis = exterior_faces(x, y, z + 1, bounds)
                         score += above_vis * 2
 
                 elif color == my_color and z < 3:
                     above = (x, y, z + 1)
                     if above not in game_state.grid and above not in set(temp_block.get_occupied_positions()):
-                        above_vis = exterior_faces(x, y, z + 1)
+                        above_vis = exterior_faces(x, y, z + 1, bounds)
                         score -= above_vis * 1
 
             if score > best_score:

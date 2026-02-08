@@ -75,6 +75,10 @@ class OpenGridGameState(GameState):
                 self._y_min, self._y_min + 3,
                 0, 3)
 
+    def scoring_bounds(self) -> Tuple[int, int, int, int, int, int]:
+        """Return the scoring bounding box (tight 4-wide box at occupied min)."""
+        return self._scoring_bounds()
+
     def _update_occupied_range(self, positions: list) -> None:
         """Update per-axis min/max tracking after placing cells."""
         for px, py, _pz in positions:

@@ -296,9 +296,18 @@ class GameState:
         """Return (x_min, x_max, y_min, y_max, z_min, z_max) of the play area."""
         return (0, 3, 0, 3, 0, 3)
 
+    def scoring_bounds(self) -> Tuple[int, int, int, int, int, int]:
+        """Return the bounds used for scoring (exterior-face determination).
+
+        In standard mode this equals :meth:`get_bounds`.  Overridden by
+        :class:`~blocko.core.open_grid.OpenGridGameState` to return the
+        tight 4-wide bounding box anchored at the occupied min.
+        """
+        return self.get_bounds()
+
     def exterior_faces(self, x: int, y: int, z: int) -> int:
         """Count how many of the 5 scored exterior faces this cell touches."""
-        return exterior_faces(x, y, z, self.get_bounds())
+        return exterior_faces(x, y, z, self.scoring_bounds())
 
     # ── copying ───────────────────────────────────────────────────────────
 

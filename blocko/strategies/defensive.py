@@ -53,27 +53,26 @@ class DefensiveStrategy(Strategy):
     MAX_CANDIDATES = 150
     LATE_GAME_THRESHOLD = 18  # blocks remaining
 
-    # ── helpers ────────────────────────────────────────────────────────────
+    # ── helpers (bounds-aware for OpenGrid support) ────────────────────────
 
-    @staticmethod
-    def _exterior_faces(x: int, y: int, z: int) -> int:
+    def _exterior_faces(self, x: int, y: int, z: int) -> int:
         """Count how many of the 5 scored exterior faces this cell touches."""
-        return exterior_faces(x, y, z)
+        return exterior_faces(x, y, z, self._bounds)
 
-    @staticmethod
-    def _is_interior(x: int, y: int, z: int) -> bool:
+    def _is_interior(self, x: int, y: int, z: int) -> bool:
         """True if the cell touches zero scored exterior faces."""
-        return (1 <= x <= 2) and (1 <= y <= 2) and (z < 3)
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
+        return (bx_min < x < bx_max) and (by_min < y < by_max) and (z < 3)
 
-    @staticmethod
-    def _is_edge_column(x: int, y: int) -> bool:
-        """True if (x,y) is on the perimeter of the 4×4 grid."""
-        return x == 0 or x == 3 or y == 0 or y == 3
+    def _is_edge_column(self, x: int, y: int) -> bool:
+        """True if (x,y) is on the perimeter of the scoring box."""
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
+        return x == bx_min or x == bx_max or y == by_min or y == by_max
 
-    @staticmethod
-    def _is_corner_column(x: int, y: int) -> bool:
-        """True if (x,y) is a corner of the 4×4 grid."""
-        return (x in (0, 3)) and (y in (0, 3))
+    def _is_corner_column(self, x: int, y: int) -> bool:
+        """True if (x,y) is a corner of the scoring box."""
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
+        return (x in (bx_min, bx_max)) and (y in (by_min, by_max))
 
     # ── biased sampling ───────────────────────────────────────────────────
 
@@ -153,9 +152,10 @@ class DefensiveStrategy(Strategy):
         placing their own color due to the stacking rule (their color is
         already at z=2 below).  Higher = more damage done.
         """
+        bx_min, bx_max, by_min, by_max, _, _ = self._bounds
         count = 0
-        for x in range(4):
-            for y in range(4):
+        for x in range(bx_min, bx_max + 1):
+            for y in range(by_min, by_max + 1):
                 if not self._is_edge_column(x, y):
                     continue
                 z2_pos = (x, y, 2)
@@ -377,6 +377,7 @@ class DefensiveStrategy(Strategy):
         my_color = Color.WHITE if player == Player.WHITE else Color.BLACK
         opp_color = Color.BLACK if player == Player.WHITE else Color.WHITE
         blocks_remaining = len(game_state.remaining_blocks)
+        self._bounds = game_state.scoring_bounds()
 
         candidates = legal_moves
         if len(legal_moves) > self.MAX_CANDIDATES:
