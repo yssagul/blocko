@@ -557,8 +557,12 @@
                 <div class="panel-section">
                     <div class="section-label">Game Mode</div>
                     <div id="mode-selector">
-                        <button class="mode-btn active" data-mode="standard">Standard</button>
-                        <button class="mode-btn" data-mode="open_grid">Open Grid</button>
+                        <button class="mode-btn active" data-mode="standard">
+                            Standard
+                        </button>
+                        <button class="mode-btn" data-mode="open_grid">
+                            Open Grid
+                        </button>
                     </div>
                 </div>
 
@@ -641,7 +645,14 @@
                 moveLog: [],
                 validPositions: new Set(),
                 processing: false,
-                bounds: { x_min: 0, x_max: 3, y_min: 0, y_max: 3, z_min: 0, z_max: 3 },
+                bounds: {
+                    x_min: 0,
+                    x_max: 3,
+                    y_min: 0,
+                    y_max: 3,
+                    z_min: 0,
+                    z_max: 3,
+                },
                 selectedMode: "standard",
                 gameMode: "standard",
                 prevBoundsKey: "0,3,0,3,0,3",
@@ -687,9 +698,14 @@
                 camera.position.set(8, 7, 8);
                 camera.lookAt(2, 2, 2);
 
-                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer = new THREE.WebGLRenderer({
+                    antialias: true,
+                    alpha: false,
+                });
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                renderer.toneMappingExposure = 1.0;
                 document
                     .getElementById("canvas-container")
                     .appendChild(renderer.domElement);
@@ -762,24 +778,53 @@
                 const cy = zSize / 2;
                 const cz = ySize / 2;
 
-                // Boundary wireframe
+                // Boundary wireframe — frosted glass physical material
                 const boxGeo = new THREE.BoxGeometry(xSize, zSize, ySize);
                 const boxEdges = new THREE.EdgesGeometry(boxGeo);
                 const boxLine = new THREE.LineSegments(
                     boxEdges,
-                    new THREE.LineBasicMaterial({ color: 0x444466 }),
+                    new THREE.LineBasicMaterial({
+                        color: 0x8899bb,
+                        transparent: true,
+                        opacity: 0.35,
+                    }),
                 );
                 boxLine.position.set(cx, cy, cz);
                 scene.add(boxLine);
                 gridObjects.push(boxLine);
 
-                // Floor grids at each z-level
+                // Frosted glass panels on each face of the bounding box
+                const panelMat = new THREE.MeshPhysicalMaterial({
+                    color: 0xaabbdd,
+                    transparent: true,
+                    opacity: 0.07,
+                    roughness: 0.6,
+                    metalness: 0.0,
+                    transmission: 0.92,
+                    thickness: 0.3,
+                    ior: 1.4,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                });
+                const panelGeo = new THREE.BoxGeometry(xSize, zSize, ySize);
+                const panel = new THREE.Mesh(panelGeo, panelMat);
+                panel.position.set(cx, cy, cz);
+                panel.renderOrder = -1;
+                scene.add(panel);
+                gridObjects.push(panel);
+
+                // Floor grids at each z-level — frosted glass style
                 // GridHelper creates a square grid, so use the larger dimension
                 const gridSize = Math.max(xSize, ySize);
                 for (let gz = 0; gz <= zSize; gz++) {
                     const grid = new THREE.GridHelper(
-                        gridSize, gridSize, 0x333355, 0x222244
+                        gridSize,
+                        gridSize,
+                        0x6677aa,
+                        0x445577,
                     );
+                    grid.material.transparent = true;
+                    grid.material.opacity = gz === 0 ? 0.4 : 0.18;
                     // Scale non-uniformly if not square
                     grid.position.set(cx, gz, cz);
                     if (xSize !== ySize) {
@@ -789,27 +834,28 @@
                     gridObjects.push(grid);
                 }
 
-                // Axes: small coloured lines from origin
-                const axLen = Math.max(xSize, ySize) + 1;
-                const axMat = (c) => new THREE.LineBasicMaterial({ color: c });
-                const mkAx = (pts, c) => {
-                    const g = new THREE.BufferGeometry().setFromPoints(pts);
-                    const l = new THREE.Line(g, axMat(c));
-                    scene.add(l);
-                    gridObjects.push(l);
-                };
-                mkAx(
-                    [new THREE.Vector3(0, 0, 0), new THREE.Vector3(axLen, 0, 0)],
-                    0xff4444,
-                ); // X red
-                mkAx(
-                    [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, axLen, 0)],
-                    0x44ff44,
-                ); // Y(up=Z game) green
-                mkAx(
-                    [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, axLen)],
-                    0x4444ff,
-                ); // Z(=Y game) blue
+                // --- Debug axes (uncomment to enable) ---
+                // RGB coloured lines from origin: X=red, Y(up=Z game)=green, Z(=Y game)=blue
+                // const axLen = Math.max(xSize, ySize) + 1;
+                // const axMat = (c) => new THREE.LineBasicMaterial({ color: c });
+                // const mkAx = (pts, c) => {
+                //     const g = new THREE.BufferGeometry().setFromPoints(pts);
+                //     const l = new THREE.Line(g, axMat(c));
+                //     scene.add(l);
+                //     gridObjects.push(l);
+                // };
+                // mkAx(
+                //     [new THREE.Vector3(0, 0, 0), new THREE.Vector3(axLen, 0, 0)],
+                //     0xff4444,
+                // ); // X red
+                // mkAx(
+                //     [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, axLen, 0)],
+                //     0x44ff44,
+                // ); // Y(up=Z game) green
+                // mkAx(
+                //     [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, axLen)],
+                //     0x4444ff,
+                // ); // Z(=Y game) blue
 
                 // Update camera target to centre of grid
                 controls.target.set(cx, cy, cz);
@@ -883,7 +929,7 @@
             }
 
             function addCellCube(gx, gy, gz, hex, isAI) {
-                const size = 0.94;
+                const size = 0.98;
                 const geo = new THREE.BoxGeometry(size, size, size);
                 const mat = new THREE.MeshPhongMaterial({
                     color: hex,
@@ -1225,7 +1271,10 @@
                     clearAllBlocks();
                     recreateGrid();
                     renderUI();
-                    const modeLabel = S.selectedMode === "open_grid" ? "Open Grid" : "Standard";
+                    const modeLabel =
+                        S.selectedMode === "open_grid"
+                            ? "Open Grid"
+                            : "Standard";
                     setStatus(`${modeLabel} mode — Select a block to begin.`);
                 } catch (err) {
                     setStatus(
@@ -1250,7 +1299,14 @@
                 if (st.black_score !== prevB) bounceScore("black-score");
 
                 // Update bounds and rebuild grid if changed
-                const newBounds = st.bounds || { x_min: 0, x_max: 3, y_min: 0, y_max: 3, z_min: 0, z_max: 3 };
+                const newBounds = st.bounds || {
+                    x_min: 0,
+                    x_max: 3,
+                    y_min: 0,
+                    y_max: 3,
+                    z_min: 0,
+                    z_max: 3,
+                };
                 const newKey = `${newBounds.x_min},${newBounds.x_max},${newBounds.y_min},${newBounds.y_max},${newBounds.z_min},${newBounds.z_max}`;
                 S.bounds = newBounds;
                 if (newKey !== S.prevBoundsKey) {
@@ -1430,7 +1486,9 @@
                     const mode = btn.dataset.mode;
                     if (mode === S.selectedMode) return;
                     S.selectedMode = mode;
-                    document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
+                    document
+                        .querySelectorAll(".mode-btn")
+                        .forEach((b) => b.classList.remove("active"));
                     btn.classList.add("active");
                     resetGame();
                 });

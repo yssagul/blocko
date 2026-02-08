@@ -31,6 +31,7 @@ from blocko.strategies.edge_control import EdgeControlStrategy
 from blocko.strategies.blocking import BlockOpponentStrategy
 from blocko.strategies.analytical import AntiRandomStrategy
 from blocko.strategies.strategic import StrategicAIStrategy
+from blocko.strategies.counter_defensive import CounterDefensiveStrategy
 from blocko.strategies.mixed import MixedStrategy
 
 # ── Simulation ────────────────────────────────────────────────────────────

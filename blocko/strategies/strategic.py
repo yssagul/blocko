@@ -1,9 +1,6 @@
 """
 Strategic AI strategy — 12-component evaluator + minimax endgame.
 
-The most advanced strategy in the Blocko engine, designed after analysing
-human games to address 7 identified weaknesses of simpler approaches.
-
 **Phase 1 (early/mid game, >12 blocks remaining):**
 Enhanced O(1) analytical evaluation with 12 weighted components and
 6-tier smart sampling.  No state copies.
