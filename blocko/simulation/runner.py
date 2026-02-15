@@ -12,13 +12,27 @@ import numpy as np
 from blocko.core.models import Player
 from blocko.core.game_state import GameState
 from blocko.core.open_grid import OpenGridGameState
+from blocko.core.random_draw import RandomDrawGameState, RandomDrawOpenGridGameState
 from blocko.strategies.base import Strategy
 from blocko.simulation.game_record import GameRecord
 
 
+def _create_game(open_grid: bool = False, random_draw: bool = False) -> GameState:
+    """Create the appropriate game state for the requested mode."""
+    if random_draw and open_grid:
+        return RandomDrawOpenGridGameState()
+    elif random_draw:
+        return RandomDrawGameState()
+    elif open_grid:
+        return OpenGridGameState()
+    else:
+        return GameState()
+
+
 def play_game(white_strategy: Strategy, black_strategy: Strategy,
               verbose: bool = False, detailed: bool = False,
-              open_grid: bool = False) -> GameRecord:
+              open_grid: bool = False,
+              random_draw: bool = False) -> GameRecord:
     """
     Play a single game with given strategies.
 
@@ -28,20 +42,30 @@ def play_game(white_strategy: Strategy, black_strategy: Strategy,
         verbose: Print move-by-move output.
         detailed: Collect per-move block usage and score progression.
         open_grid: Use OpenGridGameState with dynamic X/Y boundaries.
+        random_draw: Use RandomDraw variant (random piece selection).
 
     Returns:
         A :class:`GameRecord` with scores, move count, and optional detail.
     """
-    game = OpenGridGameState() if open_grid else GameState()
+    game = _create_game(open_grid=open_grid, random_draw=random_draw)
     num_moves = 0
     opening_move = None
     white_blocks = []
     black_blocks = []
     score_progression = [] if detailed else None
 
+    is_random_draw = random_draw
+
     while not game.is_game_over():
         current_strategy = white_strategy if game.current_player == Player.WHITE else black_strategy
         current_player = game.current_player
+
+        # In RandomDraw mode, draw a piece before the strategy chooses
+        if is_random_draw:
+            drawn = game.draw_piece()
+            if drawn is None:
+                break
+
         move = current_strategy.choose_move(game, current_player)
 
         if move is None:
@@ -102,7 +126,8 @@ def play_game(white_strategy: Strategy, black_strategy: Strategy,
 
 def run_monte_carlo(white_strategy: Strategy, black_strategy: Strategy,
                     num_games: int = 1000, verbose: bool = False,
-                    detailed: bool = False, open_grid: bool = False) -> dict:
+                    detailed: bool = False, open_grid: bool = False,
+                    random_draw: bool = False) -> dict:
     """
     Run a Monte Carlo simulation with given strategies.
 
@@ -113,6 +138,7 @@ def run_monte_carlo(white_strategy: Strategy, black_strategy: Strategy,
         verbose: Print progress every 100 games.
         detailed: Collect per-game block usage and score progressions.
         open_grid: Use OpenGridGameState with dynamic X/Y boundaries.
+        random_draw: Use RandomDraw variant (random piece selection).
 
     Returns:
         A statistics dictionary with win rates, average scores, score
@@ -135,7 +161,7 @@ def run_monte_carlo(white_strategy: Strategy, black_strategy: Strategy,
 
         record = play_game(white_strategy, black_strategy,
                            verbose=False, detailed=detailed,
-                           open_grid=open_grid)
+                           open_grid=open_grid, random_draw=random_draw)
 
         results['white_scores'].append(record.white_score)
         results['black_scores'].append(record.black_score)

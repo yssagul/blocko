@@ -1,8 +1,8 @@
 """
-Strategic AI strategy — 12-component evaluator + minimax endgame.
+Strategic AI strategy — 13-component evaluator + minimax endgame.
 
 **Phase 1 (early/mid game, >12 blocks remaining):**
-Enhanced O(1) analytical evaluation with 12 weighted components and
+Enhanced O(1) analytical evaluation with 13 weighted components and
 6-tier smart sampling.  No state copies.
 
 **Phase 2 (endgame, ≤12 blocks remaining):**
@@ -18,6 +18,8 @@ Weaknesses addressed:
   W5  Corner fixation vs face breadth→ reduced corner premium, face coverage
   W6  No counter to BW burial        → burial detection + edge disruption
   W7  WR allocation backwards        → opponent-block orientation component
+  W8  BB bait-and-stack exploit      → column stacking vulnerability penalty (C13)
+  W9  z=0-1 faces overvalued         → z-dependent C1 weighting
 """
 
 import random
@@ -30,7 +32,7 @@ from blocko.strategies.base import Strategy
 
 class StrategicAIStrategy(Strategy):
     """
-    12-component analytical evaluator + alpha-beta minimax hybrid.
+    13-component analytical evaluator + alpha-beta minimax hybrid.
 
     Complexity: O(1) per candidate in early/mid game; depth 2–4 minimax
     in endgame (≤12 blocks).
@@ -150,6 +152,7 @@ class StrategicAIStrategy(Strategy):
             cell_info.append((pos, color, faces))
 
         c1, c2 = block.color1, block.color2
+        _bx_min, _bx_max, _by_min, _by_max, _, _ = self._bounds
 
         # --- C1: Net score delta (weight ×12) ---  [W7]
         my_face_gain = 0
@@ -194,15 +197,39 @@ class StrategicAIStrategy(Strategy):
             if color == opp_color and pos[2] == 3:
                 score -= faces * 4
 
-        # --- C7: Block-type efficiency + aggression ---  [W2]
-        if c1 == my_color and c2 == my_color:
+        # --- C7: Block-type efficiency + aggression ---  [W2, W8]
+        # Pure own-colour blocks are rare.  Reward z=3 placements highly.
+        # Penalise vertical pure-block at z=0 on corner columns — this is
+        # the "BB bait-and-stack" exploit where opponent stacks WW on top.
+        is_pure_own = (c1 == my_color and c2 == my_color)
+        if is_pure_own:
             total_faces = sum(f for _, _, f in cell_info)
-            if total_faces >= 4:
-                score += 6
-            elif total_faces <= 1:
-                score -= 7
-            if total_faces >= 3:
+            any_at_z3 = any(p[2] == 3 for p, _, _ in cell_info)
+
+            if any_at_z3 and total_faces >= 3:
+                score += 10  # permanent high-value — ideal use
+            elif total_faces >= 4:
                 score += 4
+            elif total_faces >= 3:
+                score += 2
+            elif total_faces <= 1:
+                score -= 7   # waste of a rare block
+
+            # Anti-bait-and-stack: penalise vertical pure-block at z=0
+            # on corner columns where opponent can stack for z=3 corner
+            if orientation == 'z':
+                low_z = min(p[2] for p, _, _ in cell_info)
+                if low_z == 0:
+                    for p, _, _ in cell_info:
+                        x, y, z = p
+                        is_corner = ((x in {_bx_min, _bx_max}) and
+                                     (y in {_by_min, _by_max}))
+                        if is_corner and z <= 1:
+                            # Check if z=2 and z=3 above are open
+                            z2_open = (x, y, 2) not in game_state.grid
+                            z3_open = (x, y, 3) not in game_state.grid
+                            if z2_open and z3_open:
+                                score -= 20  # huge penalty — invites WW stack
 
         has_opp = (c1 == opp_color or c2 == opp_color)
         if has_opp:
@@ -212,7 +239,7 @@ class StrategicAIStrategy(Strategy):
 
         # --- C8: Face coverage bonus (+2/underserved face) ---  [W5]
         if hasattr(self, '_face_counts'):
-            _bx_min, _bx_max, _by_min, _by_max, _, _bz_max = self._bounds
+            _bz_max = self._bounds[5]
             face_map = {
                 'top':   lambda x, y, z, _bz=_bz_max: z == _bz,
                 'front': lambda x, y, z, _by=_by_min: y == _by,
@@ -229,7 +256,6 @@ class StrategicAIStrategy(Strategy):
                                 score += 2
 
         # --- C9: Constraint propagation (z=2 → z=3 forcing) ---  [W4]
-        _bx_min, _bx_max, _by_min, _by_max, _, _ = self._bounds
         for pos, color, faces in cell_info:
             x, y, z = pos
             is_edge = (x == _bx_min or x == _bx_max or y == _by_min or y == _by_max)
@@ -289,6 +315,17 @@ class StrategicAIStrategy(Strategy):
                 score += 2
                 if is_corner:
                     score += 1
+
+        # --- C13: Anti-stack incentive for non-corner edge play ---  [W8]
+        # Reward placing at z=2-3 on edges to actually claim z=3, rather
+        # than building foundations that the opponent caps.
+        if is_pure_own:
+            for pos, color, faces in cell_info:
+                x, y, z = pos
+                is_edge = (x == _bx_min or x == _bx_max or
+                           y == _by_min or y == _by_max)
+                if color == my_color and z >= 2 and is_edge:
+                    score += 4  # reward direct z=2-3 edge claims
 
         return score
 

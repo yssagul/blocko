@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>4x4x4 Block Stacking Game</title>
+        <title>Blocko</title>
         <style>
             *,
             *::before,
@@ -458,7 +458,8 @@
 
             /* ── Mode selector ──────────────────────────────────────────── */
             #mode-selector {
-                display: flex;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
                 gap: 4px;
                 margin-bottom: 6px;
             }
@@ -496,6 +497,160 @@
                 color: #666;
                 line-height: 1.5;
             }
+
+            /* ── Multiplayer lobby ──────────────────────────────────────── */
+            #lobby-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.85);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 300;
+            }
+            #lobby-overlay.hidden {
+                display: none;
+            }
+            #lobby-content {
+                background: #1a1a2e;
+                border-radius: 16px;
+                padding: 40px 50px;
+                text-align: center;
+                border: 2px solid #4ade80;
+                min-width: 340px;
+            }
+            #lobby-content h2 {
+                font-size: 24px;
+                margin-bottom: 20px;
+                color: #4ade80;
+            }
+            .room-code-display {
+                font-size: 40px;
+                font-weight: 700;
+                letter-spacing: 10px;
+                color: #fbbf24;
+                font-family: monospace;
+                margin: 8px 0;
+            }
+            #room-code-input {
+                background: rgba(30, 40, 70, 0.8);
+                border: 2px solid #444;
+                border-radius: 8px;
+                padding: 10px 14px;
+                color: #fff;
+                font-size: 20px;
+                font-family: monospace;
+                letter-spacing: 6px;
+                text-align: center;
+                width: 120px;
+            }
+            #room-code-input:focus {
+                outline: none;
+                border-color: #4ade80;
+            }
+            #lobby-actions {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 16px;
+            }
+            #join-room-section {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            #create-room-btn,
+            #join-room-btn,
+            #copy-code-btn,
+            #cancel-room-btn,
+            #lobby-close-btn {
+                padding: 10px 24px;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            #create-room-btn {
+                background: #4ade80;
+                color: #0a0a1a;
+            }
+            #create-room-btn:hover {
+                background: #22c55e;
+            }
+            #join-room-btn {
+                background: #3b82f6;
+                color: #fff;
+            }
+            #join-room-btn:hover {
+                background: #2563eb;
+            }
+            #copy-code-btn {
+                background: #6366f1;
+                color: #fff;
+            }
+            #cancel-room-btn {
+                background: transparent;
+                border: 1px solid #e94560;
+                color: #e94560;
+            }
+            #lobby-close-btn {
+                background: transparent;
+                border: 1px solid #888;
+                color: #aaa;
+                margin-top: 16px;
+            }
+            #lobby-close-btn:hover {
+                border-color: #ccc;
+                color: #fff;
+            }
+            #lobby-mode-selector {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 4px;
+                margin-bottom: 16px;
+            }
+            .lobby-mode-btn {
+                padding: 6px 8px;
+                border: 1px solid #444;
+                border-radius: 5px;
+                background: rgba(30, 40, 70, 0.6);
+                color: #bbb;
+                cursor: pointer;
+                font-size: 11px;
+            }
+            .lobby-mode-btn:hover {
+                border-color: #888;
+                color: #fff;
+            }
+            .lobby-mode-btn.active {
+                background: #0f3460;
+                border-color: #4ade80;
+                color: #fff;
+            }
+            #multiplayer-btn {
+                width: 100%;
+                margin-top: 6px;
+                padding: 7px;
+                border: 1px solid #4ade80;
+                border-radius: 6px;
+                background: transparent;
+                color: #4ade80;
+                font-size: 12px;
+                cursor: pointer;
+                font-weight: 600;
+            }
+            #multiplayer-btn:hover {
+                background: rgba(74, 222, 128, 0.1);
+            }
+            #room-badge {
+                font-size: 10px;
+                color: #4ade80;
+                letter-spacing: 1px;
+                text-align: center;
+                padding: 4px 0;
+            }
         </style>
     </head>
     <body>
@@ -505,14 +660,14 @@
             <!-- Score bar -->
             <div id="score-bar">
                 <div class="score-box">
-                    <div class="score-label">White (You)</div>
+                    <div class="score-label" id="white-label">White (You)</div>
                     <div class="score-value white-score" id="white-score">
                         0
                     </div>
                 </div>
                 <div id="turn-indicator" class="your-turn">Your Turn</div>
                 <div class="score-box">
-                    <div class="score-label">Black (AI)</div>
+                    <div class="score-label" id="black-label">Black (AI)</div>
                     <div class="score-value black-score" id="black-score">
                         0
                     </div>
@@ -563,7 +718,18 @@
                         <button class="mode-btn" data-mode="open_grid">
                             Open Grid
                         </button>
+                        <button class="mode-btn" data-mode="random_draw">
+                            Random Draw
+                        </button>
+                        <button
+                            class="mode-btn"
+                            data-mode="random_draw_open_grid"
+                        >
+                            RD Open Grid
+                        </button>
                     </div>
+                    <button id="multiplayer-btn">Multiplayer</button>
+                    <div id="room-badge" class="hidden"></div>
                 </div>
 
                 <div class="panel-section">
@@ -624,8 +790,76 @@
             </div>
         </div>
 
+        <!-- Multiplayer lobby overlay -->
+        <div id="lobby-overlay" class="hidden">
+            <div id="lobby-content">
+                <h2>Multiplayer</h2>
+                <div id="lobby-mode-select">
+                    <div class="section-label" style="margin-bottom: 6px">
+                        Game Mode
+                    </div>
+                    <div id="lobby-mode-selector">
+                        <button
+                            class="lobby-mode-btn active"
+                            data-mode="standard"
+                        >
+                            Standard
+                        </button>
+                        <button class="lobby-mode-btn" data-mode="open_grid">
+                            Open Grid
+                        </button>
+                        <button class="lobby-mode-btn" data-mode="random_draw">
+                            Random Draw
+                        </button>
+                        <button
+                            class="lobby-mode-btn"
+                            data-mode="random_draw_open_grid"
+                        >
+                            RD Open Grid
+                        </button>
+                    </div>
+                </div>
+                <div id="lobby-actions">
+                    <button id="create-room-btn">Create Room</button>
+                    <div id="join-room-section">
+                        <input
+                            type="text"
+                            id="room-code-input"
+                            maxlength="4"
+                            placeholder="Code"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                        />
+                        <button id="join-room-btn">Join Room</button>
+                    </div>
+                </div>
+                <div id="lobby-waiting" class="hidden">
+                    <p style="margin-bottom: 8px">Waiting for opponent...</p>
+                    <p>Room Code:</p>
+                    <p id="lobby-room-code" class="room-code-display"></p>
+                    <div
+                        style="
+                            display: flex;
+                            gap: 8px;
+                            justify-content: center;
+                            margin-top: 12px;
+                        "
+                    >
+                        <button id="copy-code-btn">Copy Code</button>
+                        <button id="cancel-room-btn">Cancel</button>
+                    </div>
+                </div>
+                <div id="lobby-error" class="hidden">
+                    <p id="lobby-error-msg" class="error"></p>
+                </div>
+                <button id="lobby-close-btn">Back to Single Player</button>
+            </div>
+        </div>
+
         <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+        <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
         <script>
             /* ==================================================================
    GAME STATE
@@ -656,11 +890,45 @@
                 selectedMode: "standard",
                 gameMode: "standard",
                 prevBoundsKey: "0,3,0,3,0,3",
+                humanPlayer: "white", // which color the human plays (randomized each game)
+                drawnBlock: null, // block type drawn in RandomDraw mode
+                physicsActive: false, // true when physics demolition is running
+                physicsReady: false, // true after overlay dismissed, waiting for click
+                demolitionType: null, // "explosion" | "earthquake" | "clickToPush"
+                // Multiplayer state
+                multiplayerMode: false,
+                roomCode: null,
+                myColor: null,
+                opponentConnected: false,
+                waitingForOpponent: false,
+                rematchRequested: false,
+                opponentWantsRematch: false,
             };
+
+            let socket = null; // SocketIO instance
+            let lobbyMode = "standard"; // mode selected in lobby
 
             const BLOCK_TYPES = ["BB", "WW", "BW", "BR", "WR"];
             const COLOR_MAP = { B: "black", W: "white", R: "red" };
             const HEX_MAP = { white: 0xf0f0f0, black: 0x1a1a1a, red: 0xe63946 };
+
+            /** Is it the human's turn right now? */
+            function isHumanTurn() {
+                return S.currentPlayer === S.humanPlayer;
+            }
+            /** Capitalize first letter */
+            function cap(s) {
+                return s.charAt(0).toUpperCase() + s.slice(1);
+            }
+            /** Player label for a color: "White (You)" / "Black (AI)" etc. */
+            function playerLabel(color) {
+                if (S.multiplayerMode) {
+                    const tag = color === S.myColor ? "You" : "Opponent";
+                    return `${cap(color)} (${tag})`;
+                }
+                const tag = color === S.humanPlayer ? "You" : "AI";
+                return `${cap(color)} (${tag})`;
+            }
 
             /* ==================================================================
    THREE.JS SCENE
@@ -672,6 +940,15 @@
             let placedMeshes = []; // {cube1, cube2} for each placed block (keyed by "x,y,z")
             let ghostMeshes = null; // {cube1, cube2} for hover preview
             let aiHighlightMeshes = []; // meshes from AI's last move (to animate glow)
+
+            /* Physics demolition state */
+            let physicsWorld = null;
+            let physicsBodies = []; // {meshes, offsets, body} per block
+            let physicsBodyByMesh = new Map(); // mesh → physicsBodies entry
+            let physicsFloor = null;
+            let earthquakeTimer = 0;
+            let earthquakeActive = false;
+            let lastPhysicsTime = 0;
 
             /* Coordinate convention:
    Game:    (x, y, z) where z is height (0 = ground, 3 = top)
@@ -886,6 +1163,41 @@
                 requestAnimationFrame(animate);
                 controls.update();
 
+                // --- Physics update ---
+                if (S.physicsActive && physicsWorld) {
+                    const now = performance.now();
+                    if (lastPhysicsTime === 0) lastPhysicsTime = now;
+                    let dt = (now - lastPhysicsTime) / 1000;
+                    lastPhysicsTime = now;
+                    dt = Math.min(dt, 1 / 30); // clamp to avoid spiral of death
+
+                    updateEarthquake(dt);
+                    physicsWorld.step(1 / 60, dt, 3);
+
+                    // Sync physics bodies → Three.js meshes
+                    // Each body may drive 1 or 2 meshes at local offsets
+                    const _bq = new THREE.Quaternion();
+                    const _off = new THREE.Vector3();
+                    for (const { meshes, offsets, body } of physicsBodies) {
+                        _bq.set(
+                            body.quaternion.x,
+                            body.quaternion.y,
+                            body.quaternion.z,
+                            body.quaternion.w,
+                        );
+                        for (let i = 0; i < meshes.length; i++) {
+                            _off.set(offsets[i].x, offsets[i].y, offsets[i].z);
+                            _off.applyQuaternion(_bq);
+                            meshes[i].position.set(
+                                body.position.x + _off.x,
+                                body.position.y + _off.y,
+                                body.position.z + _off.z,
+                            );
+                            meshes[i].quaternion.copy(_bq);
+                        }
+                    }
+                }
+
                 // Pulse AI highlight meshes
                 const t = Date.now() * 0.003;
                 for (const m of aiHighlightMeshes) {
@@ -969,6 +1281,332 @@
             }
 
             /* ==================================================================
+   PHYSICS DEMOLITION
+   ================================================================== */
+            function initPhysicsWorld() {
+                physicsWorld = new CANNON.World();
+                physicsWorld.gravity.set(0, -9.82, 0);
+                physicsWorld.broadphase = new CANNON.NaiveBroadphase();
+                physicsWorld.solver.iterations = 10;
+
+                // Contact materials
+                const blockMat = new CANNON.Material("block");
+                const floorMat = new CANNON.Material("floor");
+                physicsWorld.addContactMaterial(
+                    new CANNON.ContactMaterial(blockMat, blockMat, {
+                        friction: 0.4,
+                        restitution: 0.3,
+                    }),
+                );
+                physicsWorld.addContactMaterial(
+                    new CANNON.ContactMaterial(blockMat, floorMat, {
+                        friction: 0.6,
+                        restitution: 0.2,
+                    }),
+                );
+
+                // Static floor at y=0
+                physicsFloor = new CANNON.Body({ mass: 0, material: floorMat });
+                physicsFloor.addShape(new CANNON.Plane());
+                physicsFloor.quaternion.setFromAxisAngle(
+                    new CANNON.Vec3(1, 0, 0),
+                    -Math.PI / 2,
+                );
+                physicsWorld.addBody(physicsFloor);
+
+                // Build a lookup: "gx,gy,gz" → mesh
+                const meshByKey = {};
+                for (const entry of placedMeshes) {
+                    meshByKey[`${entry.gx},${entry.gy},${entry.gz}`] =
+                        entry.cube1;
+                }
+
+                // Create one compound 1×1×2 body per placed block using move log
+                const halfExt = 0.49; // matches BoxGeometry(0.98)
+                const cellShape = new CANNON.Box(
+                    new CANNON.Vec3(halfExt, halfExt, halfExt),
+                );
+                physicsBodies = [];
+                physicsBodyByMesh = new Map();
+                const pairedKeys = new Set();
+
+                for (const move of S.moveLog) {
+                    if (!move.cells || move.cells.length !== 2) continue;
+                    const [[gx1, gy1, gz1], [gx2, gy2, gz2]] = move.cells;
+                    const k1 = `${gx1},${gy1},${gz1}`;
+                    const k2 = `${gx2},${gy2},${gz2}`;
+                    const m1 = meshByKey[k1];
+                    const m2 = meshByKey[k2];
+                    if (!m1 || !m2) continue;
+                    pairedKeys.add(k1);
+                    pairedKeys.add(k2);
+
+                    // Body center = midpoint of the two cells (in Three.js coords)
+                    const cx = (m1.position.x + m2.position.x) / 2;
+                    const cy = (m1.position.y + m2.position.y) / 2;
+                    const cz = (m1.position.z + m2.position.z) / 2;
+
+                    // Offset from center to each cell
+                    const off1 = new CANNON.Vec3(
+                        m1.position.x - cx,
+                        m1.position.y - cy,
+                        m1.position.z - cz,
+                    );
+                    const off2 = new CANNON.Vec3(
+                        m2.position.x - cx,
+                        m2.position.y - cy,
+                        m2.position.z - cz,
+                    );
+
+                    const body = new CANNON.Body({
+                        mass: 1,
+                        material: blockMat,
+                        linearDamping: 0.05,
+                        angularDamping: 0.1,
+                    });
+                    body.addShape(cellShape, off1);
+                    body.addShape(cellShape, off2);
+                    body.position.set(cx, cy, cz);
+                    physicsWorld.addBody(body);
+
+                    const entry = {
+                        meshes: [m1, m2],
+                        offsets: [off1, off2],
+                        body,
+                    };
+                    physicsBodies.push(entry);
+                    physicsBodyByMesh.set(m1, entry);
+                    physicsBodyByMesh.set(m2, entry);
+                }
+
+                // Handle any orphan cells not in moveLog (shouldn't happen, but just in case)
+                for (const pmEntry of placedMeshes) {
+                    const k = `${pmEntry.gx},${pmEntry.gy},${pmEntry.gz}`;
+                    if (pairedKeys.has(k)) continue;
+                    const mesh = pmEntry.cube1;
+                    const body = new CANNON.Body({
+                        mass: 1,
+                        material: blockMat,
+                        linearDamping: 0.05,
+                        angularDamping: 0.1,
+                    });
+                    body.addShape(cellShape);
+                    body.position.set(
+                        mesh.position.x,
+                        mesh.position.y,
+                        mesh.position.z,
+                    );
+                    physicsWorld.addBody(body);
+                    const entry = {
+                        meshes: [mesh],
+                        offsets: [new CANNON.Vec3(0, 0, 0)],
+                        body,
+                    };
+                    physicsBodies.push(entry);
+                    physicsBodyByMesh.set(mesh, entry);
+                }
+            }
+
+            function pickDemolitionType() {
+                const types = ["explosion", "earthquake", "clickToPush"];
+                return types[Math.floor(Math.random() * types.length)];
+            }
+
+            function applyExplosion() {
+                let cx = 0,
+                    cy = 0,
+                    cz = 0;
+                for (const { body } of physicsBodies) {
+                    cx += body.position.x;
+                    cy += body.position.y;
+                    cz += body.position.z;
+                }
+                const n = physicsBodies.length || 1;
+                cx /= n;
+                cy /= n;
+                cz /= n;
+
+                const strength = 12;
+                for (const { body } of physicsBodies) {
+                    const dx = body.position.x - cx;
+                    const dy = body.position.y - cy;
+                    const dz = body.position.z - cz;
+                    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.5;
+                    const f = strength / dist;
+
+                    body.applyImpulse(
+                        new CANNON.Vec3(
+                            (dx / dist) * f + (Math.random() - 0.5) * 2,
+                            Math.abs((dy / dist) * f) + f * 0.5,
+                            (dz / dist) * f + (Math.random() - 0.5) * 2,
+                        ),
+                        body.position,
+                    );
+                    body.angularVelocity.set(
+                        (Math.random() - 0.5) * 10,
+                        (Math.random() - 0.5) * 10,
+                        (Math.random() - 0.5) * 10,
+                    );
+                }
+            }
+
+            function startEarthquake() {
+                earthquakeActive = true;
+                earthquakeTimer = 0;
+            }
+
+            function updateEarthquake(dt) {
+                if (!earthquakeActive) return;
+                earthquakeTimer += dt;
+                const duration = 5.0;
+
+                if (earthquakeTimer > duration) {
+                    earthquakeActive = false;
+                    physicsFloor.position.set(0, 0, 0);
+                    physicsFloor.quaternion.setFromAxisAngle(
+                        new CANNON.Vec3(1, 0, 0),
+                        -Math.PI / 2,
+                    );
+                    return;
+                }
+
+                const t = earthquakeTimer / duration;
+                const intensity = Math.sin(t * Math.PI) * 1.2;
+                const freq = 25;
+                physicsFloor.position.set(
+                    Math.sin(earthquakeTimer * freq) * intensity,
+                    0,
+                    Math.cos(earthquakeTimer * freq * 0.7) * intensity * 0.6,
+                );
+
+                // Random upward jolts to bottom-row blocks
+                if (Math.random() < 0.3) {
+                    for (const { body } of physicsBodies) {
+                        if (body.position.y < 1.5) {
+                            body.applyImpulse(
+                                new CANNON.Vec3(
+                                    (Math.random() - 0.5) * intensity * 3,
+                                    Math.random() * intensity * 2,
+                                    (Math.random() - 0.5) * intensity * 3,
+                                ),
+                                body.position,
+                            );
+                        }
+                    }
+                }
+            }
+
+            function applyClickPush(event) {
+                const rect = renderer.domElement.getBoundingClientRect();
+                const mx = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                const my = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(new THREE.Vector2(mx, my), camera);
+                // Collect all meshes from all bodies for raycasting
+                const allMeshes = [];
+                for (const { meshes } of physicsBodies) {
+                    for (const m of meshes) allMeshes.push(m);
+                }
+                const intersects = raycaster.intersectObjects(allMeshes);
+                if (intersects.length === 0) return false;
+
+                const hit = intersects[0];
+                const hitMesh = hit.object;
+                const hitPoint = hit.point;
+                const pushDir = raycaster.ray.direction.clone().normalize();
+                const pushStrength = 15;
+
+                // Look up the compound body owning this mesh
+                const pb = physicsBodyByMesh.get(hitMesh);
+                if (pb) {
+                    pb.body.applyImpulse(
+                        new CANNON.Vec3(
+                            pushDir.x * pushStrength,
+                            pushDir.y * pushStrength + 3,
+                            pushDir.z * pushStrength,
+                        ),
+                        new CANNON.Vec3(hitPoint.x, hitPoint.y, hitPoint.z),
+                    );
+                }
+
+                // Splash damage to nearby blocks
+                for (const { body } of physicsBodies) {
+                    const dx = body.position.x - hitPoint.x;
+                    const dy = body.position.y - hitPoint.y;
+                    const dz = body.position.z - hitPoint.z;
+                    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (dist < 2.5 && dist > 0.1) {
+                        const sf = (pushStrength * 0.4) / (dist + 0.5);
+                        body.applyImpulse(
+                            new CANNON.Vec3(
+                                pushDir.x * sf + (Math.random() - 0.5),
+                                sf * 0.3,
+                                pushDir.z * sf + (Math.random() - 0.5),
+                            ),
+                            body.position,
+                        );
+                    }
+                }
+                return true;
+            }
+
+            function startDemolition(event) {
+                S.physicsReady = false;
+                S.physicsActive = true;
+                lastPhysicsTime = 0;
+
+                S.demolitionType = pickDemolitionType();
+                gridObjects.forEach((o) => (o.visible = false));
+                initPhysicsWorld();
+
+                switch (S.demolitionType) {
+                    case "explosion":
+                        applyExplosion();
+                        setStatus("💥 Explosion demolition!");
+                        break;
+                    case "earthquake":
+                        startEarthquake();
+                        setStatus(
+                            "🌍 Earthquake! Watch the structure crumble!",
+                        );
+                        break;
+                    case "clickToPush":
+                        if (!applyClickPush(event)) {
+                            applyExplosion();
+                            S.demolitionType = "explosion";
+                            setStatus("💥 Explosion demolition!");
+                        } else {
+                            setStatus(
+                                "👆 Click blocks to push them! Flick the structure apart!",
+                            );
+                        }
+                        break;
+                }
+            }
+
+            function cleanupPhysics() {
+                if (physicsWorld) {
+                    for (const { body } of physicsBodies) {
+                        physicsWorld.removeBody(body);
+                    }
+                    if (physicsFloor) {
+                        physicsWorld.removeBody(physicsFloor);
+                    }
+                    physicsWorld = null;
+                }
+                physicsBodies = [];
+                physicsBodyByMesh = new Map();
+                physicsFloor = null;
+                earthquakeActive = false;
+                earthquakeTimer = 0;
+                lastPhysicsTime = 0;
+                S.physicsActive = false;
+                S.physicsReady = false;
+                S.demolitionType = null;
+                gridObjects.forEach((o) => (o.visible = showGrid));
+            }
+
+            /* ==================================================================
    GHOST (HOVER PREVIEW)
    ================================================================== */
             function removeGhost() {
@@ -1046,7 +1684,19 @@
 
             function onCanvasClick(event) {
                 if (window._isDragging && window._isDragging()) return;
+
+                // --- Physics demolition handling ---
+                if (S.physicsReady && !S.physicsActive) {
+                    startDemolition(event);
+                    return;
+                }
+                if (S.physicsActive && S.demolitionType === "clickToPush") {
+                    applyClickPush(event);
+                    return;
+                }
+
                 if (S.processing || S.gameOver) return;
+                if (S.multiplayerMode && S.currentPlayer !== S.myColor) return;
                 if (S.phase !== "SELECT_POSITION" || !S.blockType) return;
 
                 const rect = renderer.domElement.getBoundingClientRect();
@@ -1180,6 +1830,13 @@
    ================================================================== */
             async function placeBlock(gx, gy, gz) {
                 if (S.processing) return;
+
+                // Multiplayer path — use SocketIO instead of REST
+                if (S.multiplayerMode) {
+                    placeBlockMultiplayer(gx, gy, gz);
+                    return;
+                }
+
                 setProcessing(true);
                 setStatus("Placing block...");
                 removeGhost();
@@ -1237,11 +1894,21 @@
                     if (S.gameOver) {
                         showGameOver();
                     } else if (data.ai_move) {
-                        setStatus(
-                            `AI played ${data.ai_move.block_type} at (${data.ai_move.position.join(",")}) ${data.ai_move.orientation.toUpperCase()}. Your turn!`,
-                        );
+                        let msg = `AI played ${data.ai_move.block_type} at (${data.ai_move.position.join(",")}) ${data.ai_move.orientation.toUpperCase()}.`;
+                        if (isRandomDrawMode() && S.drawnBlock) {
+                            msg += ` Your drawn piece is <b>${S.drawnBlock}</b>.`;
+                        } else {
+                            msg += ` Your turn!`;
+                        }
+                        setStatus(msg);
                     } else {
-                        setStatus("Your turn!");
+                        if (isRandomDrawMode() && S.drawnBlock) {
+                            setStatus(
+                                `Your drawn piece is <b>${S.drawnBlock}</b>.`,
+                            );
+                        } else {
+                            setStatus("Your turn!");
+                        }
                     }
                 } catch (err) {
                     setStatus(
@@ -1252,6 +1919,12 @@
             }
 
             async function resetGame() {
+                // In multiplayer, "New Game" returns to lobby
+                if (S.multiplayerMode) {
+                    returnToLobby();
+                    return;
+                }
+                cleanupPhysics();
                 document
                     .getElementById("game-over-overlay")
                     .classList.add("hidden");
@@ -1270,12 +1943,52 @@
                     cancelSelectionSilent();
                     clearAllBlocks();
                     recreateGrid();
+
+                    // If AI went first, rebuild scene to show its block
+                    if (data.ai_move) {
+                        rebuildScene();
+                        // Highlight AI's opening move
+                        aiHighlightMeshes = [];
+                        if (data.ai_move.cells) {
+                            for (const [cx, cy, cz] of data.ai_move.cells) {
+                                for (const entry of placedMeshes) {
+                                    if (
+                                        entry.gx === cx &&
+                                        entry.gy === cy &&
+                                        entry.gz === cz
+                                    ) {
+                                        entry.cube1._aiStart = Date.now();
+                                        entry.cube1.material.emissive =
+                                            new THREE.Color(0xfbbf24);
+                                        entry.cube1.material.emissiveIntensity = 0.5;
+                                        aiHighlightMeshes.push(entry.cube1);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     renderUI();
-                    const modeLabel =
-                        S.selectedMode === "open_grid"
-                            ? "Open Grid"
-                            : "Standard";
-                    setStatus(`${modeLabel} mode — Select a block to begin.`);
+                    const modeLabels = {
+                        standard: "Standard",
+                        open_grid: "Open Grid",
+                        random_draw: "Random Draw",
+                        random_draw_open_grid: "Random Draw Open Grid",
+                    };
+                    const modeLabel = modeLabels[S.selectedMode] || "Standard";
+                    const youPlay = `You play <b>${cap(S.humanPlayer)}</b>`;
+                    let startMsg;
+                    if (data.ai_move) {
+                        startMsg = `${modeLabel} mode — ${youPlay} (2nd). AI opened with ${data.ai_move.block_type}.`;
+                    } else {
+                        startMsg = `${modeLabel} mode — ${youPlay} (1st).`;
+                    }
+                    if (isRandomDrawMode() && S.drawnBlock) {
+                        startMsg += ` Your drawn piece is <b>${S.drawnBlock}</b>. Click it to begin.`;
+                    } else {
+                        startMsg += ` Select a block to begin.`;
+                    }
+                    setStatus(startMsg);
                 } catch (err) {
                     setStatus(
                         `<span class="error">Connection error: ${err.message}</span>`,
@@ -1295,6 +2008,8 @@
                 S.remaining = st.remaining_blocks || {};
                 S.moveLog = st.move_log || [];
                 S.gameMode = st.mode || "standard";
+                if (st.human_player) S.humanPlayer = st.human_player;
+                S.drawnBlock = st.drawn_block || null;
                 if (st.white_score !== prevW) bounceScore("white-score");
                 if (st.black_score !== prevB) bounceScore("black-score");
 
@@ -1331,25 +2046,41 @@
                 renderTurnIndicator();
             }
 
+            function isRandomDrawMode() {
+                return (
+                    S.gameMode === "random_draw" ||
+                    S.gameMode === "random_draw_open_grid"
+                );
+            }
+
             function renderBlockPool() {
                 const c = document.getElementById("block-cards");
                 c.innerHTML = "";
+                const rdMode = isRandomDrawMode();
                 for (const bt of BLOCK_TYPES) {
                     const count = S.remaining[bt] || 0;
                     const card = document.createElement("div");
                     card.className = "block-card";
-                    if (count === 0) card.classList.add("disabled");
+                    // In RandomDraw mode, only the drawn block is selectable
+                    const isDrawn = rdMode && S.drawnBlock === bt;
+                    const canSelect = rdMode ? isDrawn && count > 0 : count > 0;
+                    if (!canSelect) card.classList.add("disabled");
                     if (bt === S.blockType) card.classList.add("selected-card");
                     const c1 = COLOR_MAP[bt[0]],
                         c2 = COLOR_MAP[bt[1]];
-                    card.innerHTML = `<div class="block-colors"><div class="block-half bh-${c1}"></div><div class="block-half bh-${c2}"></div></div><div class="block-count">${bt} &times;${count}</div>`;
-                    if (count > 0)
+                    const label =
+                        rdMode && isDrawn
+                            ? `${bt} &times;${count} &#x1F3B2;`
+                            : `${bt} &times;${count}`;
+                    card.innerHTML = `<div class="block-colors"><div class="block-half bh-${c1}"></div><div class="block-half bh-${c2}"></div></div><div class="block-count">${label}</div>`;
+                    if (canSelect)
                         card.addEventListener("click", () => selectBlock(bt));
                     c.appendChild(card);
                 }
             }
 
             function selectBlock(bt) {
+                if (S.multiplayerMode && S.currentPlayer !== S.myColor) return;
                 S.blockType = bt;
                 const uniform = bt[0] === bt[1];
                 if (uniform) {
@@ -1392,6 +2123,10 @@
                     S.whiteScore;
                 document.getElementById("black-score").textContent =
                     S.blackScore;
+                document.getElementById("white-label").textContent =
+                    playerLabel("white");
+                document.getElementById("black-label").textContent =
+                    playerLabel("black");
             }
 
             function renderTurnIndicator() {
@@ -1400,7 +2135,15 @@
                 if (S.gameOver) {
                     el.textContent = "Game Over";
                     el.classList.add("game-over-ind");
-                } else if (S.currentPlayer === "white") {
+                } else if (S.multiplayerMode) {
+                    if (S.currentPlayer === S.myColor) {
+                        el.textContent = "Your Turn";
+                        el.classList.add("your-turn");
+                    } else {
+                        el.textContent = "Opponent's Turn";
+                        el.classList.add("ai-turn");
+                    }
+                } else if (isHumanTurn()) {
                     el.textContent = "Your Turn";
                     el.classList.add("your-turn");
                 } else {
@@ -1412,12 +2155,30 @@
             function renderHistory() {
                 const list = document.getElementById("history-list");
                 list.innerHTML = "";
+                // Mode badge at top of history
+                const badge = document.createElement("div");
+                badge.className = "history-entry";
+                const histModeLabels = {
+                    standard: "Standard",
+                    open_grid: "Open Grid",
+                    random_draw: "Random Draw",
+                    random_draw_open_grid: "RD Open Grid",
+                };
+                const histModeLabel = histModeLabels[S.gameMode] || "Standard";
+                badge.innerHTML = `<span style="color:#6cf;font-size:10px;letter-spacing:1px;text-transform:uppercase">${histModeLabel} mode</span>`;
+                list.appendChild(badge);
                 for (let i = S.moveLog.length - 1; i >= 0; i--) {
                     const m = S.moveLog[i];
                     const div = document.createElement("div");
                     div.className = "history-entry";
                     const cls = m.player === "white" ? "hw" : "hb";
-                    const who = m.player === "white" ? "You" : "AI";
+                    const who = S.multiplayerMode
+                        ? m.player === S.myColor
+                            ? "You"
+                            : "Opp"
+                        : m.player === S.humanPlayer
+                          ? "You"
+                          : "AI";
                     const fl = m.flip ? " flip" : "";
                     div.innerHTML = `<span class="${cls}">${i + 1}. ${who}:</span> ${m.block_type} (${m.position.join(",")}) ${m.orientation.toUpperCase()}${fl}`;
                     list.appendChild(div);
@@ -1463,12 +2224,16 @@
                     .getElementById("game-over-overlay")
                     .classList.remove("hidden");
                 document.getElementById("final-scores").textContent =
-                    `White: ${S.whiteScore}  |  Black: ${S.blackScore}`;
+                    `${playerLabel("white")}: ${S.whiteScore}  |  ${playerLabel("black")}: ${S.blackScore}`;
                 const wt = document.getElementById("winner-text");
-                if (S.whiteScore > S.blackScore) {
+                const humanScore =
+                    S.humanPlayer === "white" ? S.whiteScore : S.blackScore;
+                const aiScore =
+                    S.humanPlayer === "white" ? S.blackScore : S.whiteScore;
+                if (humanScore > aiScore) {
                     wt.textContent = "You Win!";
                     wt.style.color = "#4ade80";
-                } else if (S.blackScore > S.whiteScore) {
+                } else if (aiScore > humanScore) {
                     wt.textContent = "AI Wins!";
                     wt.style.color = "#e94560";
                 } else {
@@ -1526,6 +2291,10 @@
                     document
                         .getElementById("game-over-overlay")
                         .classList.add("hidden");
+                    if (S.gameOver) {
+                        S.physicsReady = true;
+                        setStatus("Click the structure to demolish it!");
+                    }
                 });
             document
                 .getElementById("export-btn")
@@ -1579,6 +2348,11 @@
                     const idx = parseInt(key) - 1;
                     const bt = BLOCK_TYPES[idx];
                     if (bt && (S.remaining[bt] || 0) > 0) {
+                        // In RandomDraw mode, only the drawn block can be selected
+                        if (isRandomDrawMode() && S.drawnBlock !== bt) {
+                            e.preventDefault();
+                            return;
+                        }
                         selectBlock(bt);
                     }
                     e.preventDefault();
@@ -1627,18 +2401,49 @@
                 }
 
                 let lines = [];
+                const exportModeLabels = {
+                    standard: "Standard",
+                    open_grid: "Open Grid",
+                    random_draw: "Random Draw",
+                    random_draw_open_grid: "RD Open Grid",
+                };
+                const modeLabel = exportModeLabels[S.gameMode] || "Standard";
                 lines.push("4x4x4 Block Stacking Game — Move Log");
                 lines.push("=====================================");
                 lines.push(`Date: ${new Date().toISOString()}`);
+                lines.push(`Mode: ${modeLabel}`);
+                if (S.multiplayerMode) {
+                    lines.push(`You play: ${cap(S.myColor)}`);
+                    lines.push(`Room Code: ${S.roomCode}`);
+                } else {
+                    lines.push(`Human plays: ${cap(S.humanPlayer)}`);
+                }
                 lines.push(
-                    `Final Score: White ${S.whiteScore} | Black ${S.blackScore}`,
+                    `Final Score: ${playerLabel("white")} ${S.whiteScore} | ${playerLabel("black")} ${S.blackScore}`,
                 );
                 if (S.gameOver) {
-                    if (S.whiteScore > S.blackScore)
-                        lines.push("Result: White (Human) wins");
-                    else if (S.blackScore > S.whiteScore)
-                        lines.push("Result: Black (AI) wins");
-                    else lines.push("Result: Tie");
+                    if (S.multiplayerMode) {
+                        const myScore =
+                            S.myColor === "white" ? S.whiteScore : S.blackScore;
+                        const oppScore =
+                            S.myColor === "white" ? S.blackScore : S.whiteScore;
+                        if (myScore > oppScore) lines.push("Result: You win");
+                        else if (oppScore > myScore)
+                            lines.push("Result: You lose");
+                        else lines.push("Result: Tie");
+                    } else {
+                        const hs =
+                            S.humanPlayer === "white"
+                                ? S.whiteScore
+                                : S.blackScore;
+                        const as_ =
+                            S.humanPlayer === "white"
+                                ? S.blackScore
+                                : S.whiteScore;
+                        if (hs > as_) lines.push("Result: Human wins");
+                        else if (as_ > hs) lines.push("Result: AI wins");
+                        else lines.push("Result: Tie");
+                    }
                 } else {
                     lines.push(
                         `Status: In progress (move ${S.moveLog.length})`,
@@ -1651,7 +2456,15 @@
                 for (let i = 0; i < S.moveLog.length; i++) {
                     const m = S.moveLog[i];
                     const num = String(i + 1).padStart(4);
-                    const player = m.player === "white" ? "White " : "Black ";
+                    const tag = S.multiplayerMode
+                        ? m.player === S.myColor
+                            ? "(You)"
+                            : "(Opp)"
+                        : m.player === S.humanPlayer
+                          ? "(You)"
+                          : "(AI) ";
+                    const player =
+                        (m.player === "white" ? "W" : "B") + " " + tag;
                     const bt = m.block_type.padEnd(5);
                     const pos = `(${m.position.join(",")})`.padEnd(9);
                     const orient = m.orientation.toUpperCase().padEnd(6);
@@ -1663,7 +2476,18 @@
 
                 lines.push("");
                 lines.push("--- Raw JSON ---");
-                lines.push(JSON.stringify(S.moveLog, null, 2));
+                lines.push(
+                    JSON.stringify(
+                        {
+                            mode: S.gameMode,
+                            white_score: S.whiteScore,
+                            black_score: S.blackScore,
+                            moves: S.moveLog,
+                        },
+                        null,
+                        2,
+                    ),
+                );
 
                 const text = lines.join("\n");
                 const blob = new Blob([text], { type: "text/plain" });
@@ -1680,10 +2504,397 @@
             }
 
             /* ==================================================================
+   MULTIPLAYER / SOCKETIO
+   ================================================================== */
+
+            function initSocket() {
+                if (socket) return;
+                socket = io();
+
+                // --- Room lifecycle ---
+
+                socket.on("room_created", (data) => {
+                    S.roomCode = data.room_code;
+                    S.myColor = data.your_color;
+                    S.waitingForOpponent = true;
+                    showLobbyWaiting(data.room_code);
+                });
+
+                socket.on("room_joined", (data) => {
+                    S.roomCode = data.room_code;
+                    S.myColor = data.your_color;
+                    S.multiplayerMode = true;
+                    S.opponentConnected = true;
+                });
+
+                socket.on("join_error", (data) => {
+                    showLobbyError(data.error);
+                });
+
+                socket.on("opponent_joined", (data) => {
+                    S.opponentConnected = true;
+                    S.waitingForOpponent = false;
+                });
+
+                // --- Game flow ---
+
+                socket.on("game_start", (data) => {
+                    S.multiplayerMode = true;
+                    S.myColor = data.your_color;
+                    S.humanPlayer = data.your_color;
+                    S.rematchRequested = false;
+                    S.opponentWantsRematch = false;
+
+                    hideLobby();
+                    cleanupPhysics();
+                    document
+                        .getElementById("game-over-overlay")
+                        .classList.add("hidden");
+
+                    S.prevBoundsKey = "";
+                    applyServerState(data.state);
+                    S.legalMoves = data.legal_moves || {};
+
+                    cancelSelectionSilent();
+                    clearAllBlocks();
+                    recreateGrid();
+                    rebuildScene();
+                    renderUI();
+                    renderMultiplayerUI();
+
+                    const isMyTurn = S.currentPlayer === S.myColor;
+                    if (isMyTurn) {
+                        if (isRandomDrawMode() && S.drawnBlock) {
+                            setStatus(
+                                `Game started! You are <b>${cap(S.myColor)}</b>. Your drawn piece is <b>${S.drawnBlock}</b>.`,
+                            );
+                        } else {
+                            setStatus(
+                                `Game started! You are <b>${cap(S.myColor)}</b>. Your turn — select a block.`,
+                            );
+                        }
+                    } else {
+                        setStatus(
+                            `Game started! You are <b>${cap(S.myColor)}</b>. Waiting for opponent...`,
+                        );
+                    }
+                });
+
+                socket.on("move_made", (data) => {
+                    setProcessing(false);
+                    applyServerState(data.state);
+                    S.legalMoves = data.legal_moves || {};
+
+                    rebuildScene();
+
+                    // Highlight the opponent's move
+                    aiHighlightMeshes = [];
+                    if (
+                        data.move &&
+                        data.move.cells &&
+                        data.move.player !== S.myColor
+                    ) {
+                        for (const [cx, cy, cz] of data.move.cells) {
+                            for (const entry of placedMeshes) {
+                                if (
+                                    entry.gx === cx &&
+                                    entry.gy === cy &&
+                                    entry.gz === cz
+                                ) {
+                                    entry.cube1._aiStart = Date.now();
+                                    entry.cube1.material.emissive =
+                                        new THREE.Color(0xfbbf24);
+                                    entry.cube1.material.emissiveIntensity = 0.5;
+                                    aiHighlightMeshes.push(entry.cube1);
+                                }
+                            }
+                        }
+                    }
+
+                    cancelSelectionSilent();
+                    renderUI();
+
+                    if (S.gameOver) {
+                        showMultiplayerGameOver();
+                    } else {
+                        const isMyTurn = S.currentPlayer === S.myColor;
+                        if (isMyTurn) {
+                            if (isRandomDrawMode() && S.drawnBlock) {
+                                setStatus(
+                                    `Opponent played. Your drawn piece is <b>${S.drawnBlock}</b>.`,
+                                );
+                            } else {
+                                setStatus("Your turn! Select a block.");
+                            }
+                        } else {
+                            setStatus("Waiting for opponent...");
+                        }
+                    }
+                });
+
+                socket.on("move_error", (data) => {
+                    setStatus(`<span class="error">${data.error}</span>`);
+                    setProcessing(false);
+                });
+
+                // --- Disconnection ---
+
+                socket.on("opponent_disconnected", (data) => {
+                    S.opponentConnected = false;
+                    setStatus(
+                        `<span class="error">${data.message}</span> <a href="#" onclick="returnToLobby(); return false;" style="color:#4ade80">Return to Lobby</a>`,
+                    );
+                });
+
+                // --- Rematch ---
+
+                socket.on("rematch_requested", () => {
+                    S.opponentWantsRematch = true;
+                    updateRematchUI();
+                });
+            }
+
+            function placeBlockMultiplayer(gx, gy, gz) {
+                setProcessing(true);
+                setStatus("Placing block...");
+                removeGhost();
+
+                socket.emit("game_move", {
+                    block_type: S.blockType,
+                    position: [gx, gy, gz],
+                    orientation: S.orientation,
+                    flip: S.flip,
+                });
+
+                // Timeout fallback
+                setTimeout(() => {
+                    if (S.processing) {
+                        setProcessing(false);
+                        setStatus(
+                            '<span class="error">No response from server. Try again.</span>',
+                        );
+                    }
+                }, 10000);
+            }
+
+            function showMultiplayerGameOver() {
+                document
+                    .getElementById("game-over-overlay")
+                    .classList.remove("hidden");
+                document.getElementById("final-scores").textContent =
+                    `${playerLabel("white")}: ${S.whiteScore}  |  ${playerLabel("black")}: ${S.blackScore}`;
+
+                const wt = document.getElementById("winner-text");
+                const myScore =
+                    S.myColor === "white" ? S.whiteScore : S.blackScore;
+                const oppScore =
+                    S.myColor === "white" ? S.blackScore : S.whiteScore;
+
+                if (myScore > oppScore) {
+                    wt.textContent = "You Win!";
+                    wt.style.color = "#4ade80";
+                } else if (oppScore > myScore) {
+                    wt.textContent = "You Lose!";
+                    wt.style.color = "#e94560";
+                } else {
+                    wt.textContent = "It's a Tie!";
+                    wt.style.color = "#fbbf24";
+                }
+                updateGameOverButtons();
+            }
+
+            function updateGameOverButtons() {
+                const playBtn = document.getElementById("play-again-btn");
+                if (S.multiplayerMode) {
+                    playBtn.textContent = "Request Rematch";
+                    playBtn.onclick = () => {
+                        if (!S.rematchRequested) {
+                            S.rematchRequested = true;
+                            socket.emit("request_rematch");
+                            playBtn.textContent = S.opponentWantsRematch
+                                ? "Starting..."
+                                : "Waiting for opponent...";
+                            playBtn.disabled = true;
+                        }
+                    };
+                } else {
+                    playBtn.textContent = "Play Again";
+                    playBtn.onclick = resetGame;
+                }
+            }
+
+            function updateRematchUI() {
+                const playBtn = document.getElementById("play-again-btn");
+                if (S.multiplayerMode && S.opponentWantsRematch) {
+                    if (S.rematchRequested) {
+                        playBtn.textContent = "Starting...";
+                    } else {
+                        playBtn.textContent = "Opponent wants rematch — Accept";
+                        playBtn.disabled = false;
+                    }
+                }
+            }
+
+            // --- Lobby control ---
+
+            function showLobby() {
+                document
+                    .getElementById("lobby-overlay")
+                    .classList.remove("hidden");
+                document
+                    .getElementById("lobby-actions")
+                    .classList.remove("hidden");
+                document
+                    .getElementById("lobby-waiting")
+                    .classList.add("hidden");
+                document.getElementById("lobby-error").classList.add("hidden");
+                document.getElementById("room-code-input").value = "";
+            }
+
+            function hideLobby() {
+                document
+                    .getElementById("lobby-overlay")
+                    .classList.add("hidden");
+            }
+
+            function showLobbyWaiting(code) {
+                document
+                    .getElementById("lobby-actions")
+                    .classList.add("hidden");
+                document
+                    .getElementById("lobby-waiting")
+                    .classList.remove("hidden");
+                document.getElementById("lobby-room-code").textContent = code;
+            }
+
+            function showLobbyError(msg) {
+                const el = document.getElementById("lobby-error");
+                el.classList.remove("hidden");
+                document.getElementById("lobby-error-msg").textContent = msg;
+                setTimeout(() => el.classList.add("hidden"), 4000);
+            }
+
+            function returnToLobby() {
+                if (socket) socket.emit("leave_room");
+                S.multiplayerMode = false;
+                S.roomCode = null;
+                S.myColor = null;
+                S.opponentConnected = false;
+                S.waitingForOpponent = false;
+                S.rematchRequested = false;
+                S.opponentWantsRematch = false;
+                renderMultiplayerUI();
+                renderUI();
+                showLobby();
+            }
+
+            function renderMultiplayerUI() {
+                const modeSelector = document.getElementById("mode-selector");
+                const mpBtn = document.getElementById("multiplayer-btn");
+                const badge = document.getElementById("room-badge");
+
+                if (S.multiplayerMode) {
+                    modeSelector.style.display = "none";
+                    mpBtn.style.display = "none";
+                    badge.classList.remove("hidden");
+                    badge.innerHTML = `ROOM: <b>${S.roomCode}</b> &bull; ${cap(S.myColor)}`;
+                } else {
+                    modeSelector.style.display = "";
+                    mpBtn.style.display = "";
+                    badge.classList.add("hidden");
+                    badge.innerHTML = "";
+                }
+            }
+
+            // --- Lobby event handlers (attached after DOM ready in boot) ---
+
+            function attachLobbyHandlers() {
+                document
+                    .getElementById("multiplayer-btn")
+                    .addEventListener("click", () => {
+                        initSocket();
+                        showLobby();
+                    });
+
+                document
+                    .getElementById("create-room-btn")
+                    .addEventListener("click", () => {
+                        socket.emit("create_room", { mode: lobbyMode });
+                    });
+
+                document
+                    .getElementById("join-room-btn")
+                    .addEventListener("click", () => {
+                        const code = document
+                            .getElementById("room-code-input")
+                            .value.trim();
+                        if (code.length !== 4 || !/^\d{4}$/.test(code)) {
+                            showLobbyError(
+                                "Please enter a valid 4-digit room code.",
+                            );
+                            return;
+                        }
+                        socket.emit("join_room", { room_code: code });
+                    });
+
+                document
+                    .getElementById("cancel-room-btn")
+                    .addEventListener("click", () => {
+                        socket.emit("leave_room");
+                        S.waitingForOpponent = false;
+                        S.roomCode = null;
+                        showLobby();
+                    });
+
+                document
+                    .getElementById("copy-code-btn")
+                    .addEventListener("click", () => {
+                        const btn = document.getElementById("copy-code-btn");
+                        navigator.clipboard.writeText(S.roomCode).then(() => {
+                            btn.textContent = "Copied!";
+                            setTimeout(() => {
+                                btn.textContent = "Copy Code";
+                            }, 2000);
+                        });
+                    });
+
+                document
+                    .getElementById("lobby-close-btn")
+                    .addEventListener("click", () => {
+                        if (S.waitingForOpponent && socket) {
+                            socket.emit("leave_room");
+                            S.waitingForOpponent = false;
+                            S.roomCode = null;
+                        }
+                        hideLobby();
+                    });
+
+                document.querySelectorAll(".lobby-mode-btn").forEach((btn) => {
+                    btn.addEventListener("click", () => {
+                        lobbyMode = btn.dataset.mode;
+                        document
+                            .querySelectorAll(".lobby-mode-btn")
+                            .forEach((b) => b.classList.remove("active"));
+                        btn.classList.add("active");
+                    });
+                });
+
+                // Allow Enter key in code input to join
+                document
+                    .getElementById("room-code-input")
+                    .addEventListener("keydown", (e) => {
+                        if (e.key === "Enter") {
+                            document.getElementById("join-room-btn").click();
+                        }
+                    });
+            }
+
+            /* ==================================================================
    BOOT
    ================================================================== */
             async function boot() {
                 initThree();
+                attachLobbyHandlers();
                 await resetGame();
             }
             boot();

@@ -1,2 +1,4 @@
 numpy>=1.24
 flask>=3.0
+flask-socketio>=5.3
+eventlet>=0.36

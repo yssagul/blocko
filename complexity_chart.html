@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocko — Computational Complexity Analysis</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d28;
+    --border: #2a2d3a;
+    --text: #e1e4ed;
+    --muted: #8b90a0;
+    --accent: #6c8aff;
+    --accent2: #ff6c8a;
+    --gold: #ffd166;
+    --green: #06d6a0;
+    --orange: #ff9f43;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 {
+    font-size: 2.2rem;
+    text-align: center;
+    margin-bottom: 0.3rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+  }
+
+  .grid { display: grid; gap: 1.5rem; margin-bottom: 2rem; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .card h2 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: var(--accent);
+  }
+  .card h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .stat-card {
+    text-align: center;
+    padding: 1.2rem;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+  }
+  .stat-sub {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+    opacity: 0.7;
+  }
+
+  .chart-container {
+    position: relative;
+    width: 100%;
+    height: 420px;
+  }
+  .chart-container.tall { height: 500px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th, td {
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+  td { color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  tr.highlight {
+    background: rgba(108, 138, 255, 0.08);
+  }
+  tr.highlight td {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .solved { color: var(--green); }
+  .unsolved { color: var(--accent2); }
+  .partial { color: var(--orange); }
+
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .badge-solved { background: rgba(6,214,160,0.15); color: var(--green); }
+  .badge-unsolved { background: rgba(255,108,138,0.15); color: var(--accent2); }
+  .badge-partial { background: rgba(255,159,67,0.15); color: var(--orange); }
+
+  .insight-box {
+    background: rgba(108,138,255,0.06);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.2rem;
+    border-radius: 0 8px 8px 0;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+  }
+  .insight-box strong { color: var(--accent); }
+
+  .section-title {
+    font-size: 1.4rem;
+    margin: 2.5rem 0 1.2rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .legend-row {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 900px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    body { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Blocko — Computational Complexity Analysis</h1>
+  <p class="subtitle">How complex is Blocko compared to the world's most studied board games?</p>
+
+  <!-- Deduplication explanation -->
+  <div class="card" style="margin-bottom:1.5rem;border-left:3px solid var(--gold);">
+    <h2 style="color:var(--gold);">⚠ Deduplication: 5 Types, 32 Physical Blocks</h2>
+    <p style="font-size:0.9rem;color:var(--muted);margin-bottom:0.5rem;">
+      Blocko has 32 physical blocks but only <strong style="color:var(--text)">5 distinct types</strong> (3×BB, 3×WW, 8×BW, 9×BR, 9×WR).
+      The code's <code>get_legal_moves()</code> generates a separate move for each physical copy (e.g., BB₁ at corner ≠ BB₂ at corner),
+      inflating the raw count by <strong style="color:var(--text)">6-8×</strong> in the opening.
+    </p>
+    <p style="font-size:0.9rem;color:var(--muted);">
+      All metrics below use <strong style="color:var(--accent)">deduplicated counts</strong> — moves that produce identical board states
+      are collapsed. This means: same-type blocks are interchangeable, and flipping a uniform block (BB, WW) is a no-op.
+      The reduction decreases through the game (from 8× at ply 1 to 1.2× at ply 32) as duplicates get used up.
+    </p>
+  </div>
+
+  <!-- Key Stats -->
+  <div class="grid grid-4">
+    <div class="card stat-card">
+      <div class="stat-value" style="color:var(--accent)">10<sup>20</sup></div>
+      <div class="stat-label">State-Space Complexity</div>
+      <div class="stat-sub">Legal board positions</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-value" style="color:var(--accent2)">10<sup>57</sup></div>
+      <div class="stat-label">Game Tree (Standard)</div>
+      <div class="stat-sub">Effective distinct paths</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-value" style="color:var(--gold)">109</div>
+      <div class="stat-label">Avg Branching Factor</div>
+      <div class="stat-sub">Deduplicated (632 raw)</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-value" style="color:var(--green)">31</div>
+      <div class="stat-label">Game Length</div>
+      <div class="stat-sub">Average plies</div>
+    </div>
+  </div>
+
+  <!-- Main Comparison Charts -->
+  <div class="section-title">Complexity Landscape</div>
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>State-Space Complexity (log₁₀)</h2>
+      <div class="chart-container"><canvas id="stateSpaceChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Game Tree Complexity (log₁₀)</h2>
+      <div class="chart-container"><canvas id="gameTreeChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Bubble Chart -->
+  <div class="card" style="margin-bottom:1.5rem;">
+    <h2>Branching Factor vs Game Length vs Game Tree Size</h2>
+    <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.8rem;">Bubble size = game tree complexity. Blocko has unusually high branching for its short game length.</p>
+    <div class="chart-container tall"><canvas id="bubbleChart"></canvas></div>
+  </div>
+
+  <!-- Branching Factor Through Game -->
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>Branching Factor by Ply — Standard</h2>
+      <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.5rem;">Raw = per-block moves (32 distinct blocks). Deduplicated = per-type moves (5 types). Reduction starts at 8× (3 copies of BB/WW + flip redundancy) and narrows to ~1.2× as duplicates are consumed.</p>
+      <div class="chart-container"><canvas id="branchStd"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Branching Factor by Ply — Open Grid</h2>
+      <p style="color:var(--muted);font-size:0.8rem;margin-bottom:0.5rem;">Open Grid peaks at ply 2 (907 unique moves) as the floating grid hasn't locked yet. By ply 10, both variants converge.</p>
+      <div class="chart-container"><canvas id="branchOG"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Solvability Analysis -->
+  <div class="section-title">Could Blocko Be Solved?</div>
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>Solvability Frontier</h2>
+      <div class="chart-container tall"><canvas id="solvabilityChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Where Blocko Sits</h2>
+      <div class="insight-box">
+        <strong>State-space (~10²⁰)</strong> is comparable to Checkers (10²¹), which was weakly solved in 2007 after 18 years of computation. This puts Blocko in the "theoretically approachable" zone for state-space enumeration.
+      </div>
+      <div class="insight-box" style="margin-top:0.8rem;">
+        <strong>Game tree (~10⁵⁷)</strong> is comparable to Othello (10⁵⁸). Othello was claimed weakly solved in 2023 — still under verification. This suggests Blocko's game tree is at the frontier of solvability.
+      </div>
+      <div class="insight-box" style="margin-top:0.8rem;">
+        <strong>High branching factor (~109)</strong> makes alpha-beta pruning less effective than in games like Checkers (b≈8) or Chess (b≈35). Each search level requires evaluating ~100+ distinct moves.
+      </div>
+      <div class="insight-box" style="margin-top:0.8rem;">
+        <strong>Verdict:</strong> Blocko is <em>not easily solvable</em> with current technology. A weak solution might be feasible with significant computational investment (years of dedicated research), but a strong solution (complete strategy database) is impractical given ~10²⁰ positions to store.
+      </div>
+    </div>
+  </div>
+
+  <!-- Full Comparison Table -->
+  <div class="section-title">Complete Comparison Table</div>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Game</th>
+          <th>State-Space (log₁₀)</th>
+          <th>Game Tree (log₁₀)</th>
+          <th>Avg Branch</th>
+          <th>Avg Length</th>
+          <th>Status</th>
+          <th>Year</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Tic-Tac-Toe</td><td>3</td><td>5</td><td>4</td><td>9</td>
+          <td><span class="badge badge-solved">Solved</span></td><td>1972</td>
+        </tr>
+        <tr>
+          <td>Quarto</td><td>10</td><td>17</td><td>~30</td><td>16</td>
+          <td><span class="badge badge-solved">Solved</span></td><td>1998</td>
+        </tr>
+        <tr>
+          <td>Nine Men's Morris</td><td>10</td><td>50</td><td>~10</td><td>~50</td>
+          <td><span class="badge badge-solved">Solved</span></td><td>1993</td>
+        </tr>
+        <tr>
+          <td>Connect Four</td><td>14</td><td>21</td><td>4</td><td>36</td>
+          <td><span class="badge badge-solved">Solved</span></td><td>1988</td>
+        </tr>
+        <tr>
+          <td>Backgammon</td><td>20</td><td>144</td><td>~250</td><td>~60</td>
+          <td><span class="badge badge-unsolved">Unsolved</span></td><td>—</td>
+        </tr>
+        <tr class="highlight">
+          <td>Blocko Standard</td><td>20</td><td>57</td><td>109</td><td>31</td>
+          <td><span class="badge badge-unsolved">Unsolved</span></td><td>—</td>
+        </tr>
+        <tr class="highlight">
+          <td>Blocko Open Grid</td><td>20</td><td>59</td><td>156</td><td>31</td>
+          <td><span class="badge badge-unsolved">Unsolved</span></td><td>—</td>
+        </tr>
+        <tr>
+          <td>Checkers</td><td>21</td><td>31</td><td>~8</td><td>70</td>
+          <td><span class="badge badge-solved">Weakly Solved</span></td><td>2007</td>
+        </tr>
+        <tr>
+          <td>Othello</td><td>28</td><td>58</td><td>~10</td><td>58</td>
+          <td><span class="badge badge-partial">Claimed Solved</span></td><td>2023</td>
+        </tr>
+        <tr>
+          <td>Chess</td><td>44</td><td>123</td><td>35</td><td>80</td>
+          <td><span class="badge badge-unsolved">Unsolved</span></td><td>—</td>
+        </tr>
+        <tr>
+          <td>Hex (11×11)</td><td>57</td><td>98</td><td>~30</td><td>~60</td>
+          <td><span class="badge badge-unsolved">Unsolved</span></td><td>—</td>
+        </tr>
+        <tr>
+          <td>Shogi</td><td>71</td><td>226</td><td>~80</td><td>115</td>
+          <td><span class="badge badge-unsolved">Unsolved</span></td><td>—</td>
+        </tr>
+        <tr>
+          <td>Go (19×19)</td><td>171</td><td>360</td><td>~250</td><td>150</td>
+          <td><span class="badge badge-unsolved">Unsolved</span></td><td>—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Blocko Variant Comparison -->
+  <div class="section-title">Standard vs Open Grid</div>
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>Variant Metrics</h2>
+      <table>
+        <thead><tr><th>Metric</th><th>Standard</th><th>Open Grid</th></tr></thead>
+        <tbody>
+          <tr><td>State-space (log₁₀)</td><td>20.2</td><td>20.2</td></tr>
+          <tr><td>Game tree (log₁₀, effective)</td><td>57.3</td><td>58.8</td></tr>
+          <tr><td>Game tree (log₁₀, raw)</td><td>75.7</td><td>77.1</td></tr>
+          <tr><td>Avg branching (effective)</td><td>108.6</td><td>155.6</td></tr>
+          <tr><td>Avg branching (raw)</td><td>631.8</td><td>996.3</td></tr>
+          <tr><td>Geo-mean branching (effective)</td><td>67.6</td><td>74.4</td></tr>
+          <tr><td>Avg game length (plies)</td><td>31.1</td><td>31.1</td></tr>
+          <tr><td>Max branching (ply 1)</td><td>320</td><td>864</td></tr>
+          <tr><td>Peak branching ply</td><td>1</td><td>2 (900)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Key Differences</h2>
+      <div class="insight-box">
+        <strong>Opening phase:</strong> Open Grid has 2.7× more opening moves (864 vs 320 effective) because the floating grid allows blocks to be placed at any initial position.
+      </div>
+      <div class="insight-box" style="margin-top:0.8rem;">
+        <strong>Mid/late game convergence:</strong> By ply 8, both variants have nearly identical branching (~160 effective), since the grid has locked into a 4×4 footprint.
+      </div>
+      <div class="insight-box" style="margin-top:0.8rem;">
+        <strong>State-space identical:</strong> Once the board is full, both variants produce the same set of possible configurations (modulo coordinate translation).
+      </div>
+      <div class="insight-box" style="margin-top:0.8rem;">
+        <strong>Game tree ~10× larger:</strong> Open Grid's tree is 10^1.5 ≈ 30× larger than Standard, driven entirely by the extra opening flexibility.
+      </div>
+    </div>
+  </div>
+
+  <p style="text-align:center;color:var(--muted);font-size:0.75rem;margin-top:2rem;">
+    Analysis computed via empirical simulation (200 games/variant) and column-based DP over the 4×4×4 grid. Reference data from Allis (1994), Herik et al. (2002), Schaeffer et al. (2007).
+  </p>
+</div>
+
+<script>
+// Color palette
+const colors = {
+  accent: '#6c8aff',
+  accent2: '#ff6c8a',
+  gold: '#ffd166',
+  green: '#06d6a0',
+  orange: '#ff9f43',
+  muted: '#555a6e',
+  text: '#e1e4ed',
+  grid: '#2a2d3a'
+};
+
+Chart.defaults.color = colors.text;
+Chart.defaults.borderColor = colors.grid;
+Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
+
+// Games data
+const games = [
+  { name: 'Tic-Tac-Toe',    ss: 3,   gt: 5,   branch: 4,   length: 9,   solved: true },
+  { name: 'Quarto',          ss: 10,  gt: 17,  branch: 30,  length: 16,  solved: true },
+  { name: 'Nine Men\'s M.',  ss: 10,  gt: 50,  branch: 10,  length: 50,  solved: true },
+  { name: 'Connect Four',    ss: 14,  gt: 21,  branch: 4,   length: 36,  solved: true },
+  { name: 'Backgammon',      ss: 20,  gt: 144, branch: 250, length: 60,  solved: false },
+  { name: 'Blocko Std',      ss: 20,  gt: 57,  branch: 109, length: 31,  solved: false, blocko: true },
+  { name: 'Blocko OG',       ss: 20,  gt: 59,  branch: 156, length: 31,  solved: false, blocko: true },
+  { name: 'Checkers',        ss: 21,  gt: 31,  branch: 8,   length: 70,  solved: true },
+  { name: 'Othello',         ss: 28,  gt: 58,  branch: 10,  length: 58,  solved: 'partial' },
+  { name: 'Chess',           ss: 44,  gt: 123, branch: 35,  length: 80,  solved: false },
+  { name: 'Hex (11×11)',     ss: 57,  gt: 98,  branch: 30,  length: 60,  solved: false },
+  { name: 'Shogi',           ss: 71,  gt: 226, branch: 80,  length: 115, solved: false },
+  { name: 'Go (19×19)',      ss: 171, gt: 360, branch: 250, length: 150, solved: false },
+];
+
+function getColor(g) {
+  if (g.blocko) return colors.accent;
+  if (g.solved === true) return colors.green;
+  if (g.solved === 'partial') return colors.orange;
+  return colors.muted;
+}
+function getBorderColor(g) {
+  if (g.blocko) return colors.accent2;
+  return getColor(g);
+}
+
+// 1. State-Space Chart
+new Chart(document.getElementById('stateSpaceChart'), {
+  type: 'bar',
+  data: {
+    labels: games.map(g => g.name),
+    datasets: [{
+      data: games.map(g => g.ss),
+      backgroundColor: games.map(g => getColor(g) + '99'),
+      borderColor: games.map(g => getBorderColor(g)),
+      borderWidth: games.map(g => g.blocko ? 2 : 1),
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `10^${ctx.parsed.y} positions` } }
+    },
+    scales: {
+      x: { ticks: { maxRotation: 45, font: { size: 11 } } },
+      y: { title: { display: true, text: 'log₁₀(positions)' }, beginAtZero: true }
+    }
+  }
+});
+
+// 2. Game Tree Chart
+new Chart(document.getElementById('gameTreeChart'), {
+  type: 'bar',
+  data: {
+    labels: games.map(g => g.name),
+    datasets: [{
+      data: games.map(g => g.gt),
+      backgroundColor: games.map(g => getColor(g) + '99'),
+      borderColor: games.map(g => getBorderColor(g)),
+      borderWidth: games.map(g => g.blocko ? 2 : 1),
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `10^${ctx.parsed.y} game paths` } }
+    },
+    scales: {
+      x: { ticks: { maxRotation: 45, font: { size: 11 } } },
+      y: { title: { display: true, text: 'log₁₀(game tree nodes)' }, beginAtZero: true }
+    }
+  }
+});
+
+// 3. Bubble Chart — Branching vs Length vs Tree
+new Chart(document.getElementById('bubbleChart'), {
+  type: 'bubble',
+  data: {
+    datasets: games.map(g => ({
+      label: g.name,
+      data: [{ x: g.length, y: g.branch, r: Math.max(4, Math.sqrt(g.gt) * 1.1) }],
+      backgroundColor: getColor(g) + '77',
+      borderColor: getBorderColor(g),
+      borderWidth: g.blocko ? 3 : 1,
+    }))
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const g = games[ctx.datasetIndex];
+            return `${g.name}: branch=${g.branch}, length=${g.length}, tree=10^${g.gt}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: 'Average Game Length (plies)' },
+        min: 0, max: 170
+      },
+      y: {
+        title: { display: true, text: 'Average Branching Factor' },
+        type: 'logarithmic',
+        min: 1, max: 500,
+      }
+    }
+  },
+  plugins: [{
+    afterDraw(chart) {
+      const ctx2 = chart.ctx;
+      ctx2.save();
+      ctx2.font = '11px Inter, sans-serif';
+      chart.data.datasets.forEach((ds, i) => {
+        const meta = chart.getDatasetMeta(i);
+        if (meta.data[0]) {
+          const { x, y } = meta.data[0];
+          const g = games[i];
+          ctx2.fillStyle = g.blocko ? colors.accent : colors.text + '99';
+          ctx2.textAlign = 'center';
+          ctx2.fillText(g.name, x, y - meta.data[0].options.radius - 4);
+        }
+      });
+      ctx2.restore();
+    }
+  }]
+});
+
+// 4. Branching by ply — Standard
+const stdEff = [320,283.8,252.9,227.9,206.6,188.1,174.3,160,148.7,138.6,130.3,121.6,114.2,107.1,98.8,92.3,84.9,78.2,71,63.8,57.5,51.6,45.8,40.3,33.7,27.9,21.6,16.1,10.5,5.9,2.6,1.2];
+const stdRaw = [2560,2202,1902,1659,1455,1280,1146,1014,905,812,731,652,585,521,457,404,352,306,262,221,185,154,125,101,77,58,40,27,16,8,3.3,1.4];
+const plies = Array.from({length:32}, (_,i) => i+1);
+
+new Chart(document.getElementById('branchStd'), {
+  type: 'line',
+  data: {
+    labels: plies,
+    datasets: [
+      {
+        label: 'Raw (32 blocks as distinct)',
+        data: stdRaw,
+        borderColor: colors.muted,
+        backgroundColor: colors.muted + '22',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 1.5,
+      },
+      {
+        label: 'Deduplicated (5 types, flip-collapsed)',
+        data: stdEff,
+        borderColor: colors.accent,
+        backgroundColor: colors.accent + '22',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 2,
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } } },
+    scales: {
+      x: { title: { display: true, text: 'Ply' } },
+      y: { title: { display: true, text: 'Legal Moves' }, type: 'logarithmic', min: 1, max: 5000 }
+    }
+  }
+});
+
+// 5. Branching by ply — Open Grid
+const ogEff = [864,907,460.5,310.3,235.7,201.1,178.5,161.7,149,138.6,129,121.1,113.1,105.6,98.1,91.3,84.7,78.8,73.3,66.3,59.5,53.2,47.2,40.1,33.3,27.1,21.1,15.4,10.4,6,2.7,1.2];
+const ogRaw = [6912,7032,3459,2257,1659,1368,1172,1024,908,812,725,650,578,514,455,401,352,307,267,226,189,156,128,101,77,57,41,27,16,8.1,3.5,1.3];
+
+new Chart(document.getElementById('branchOG'), {
+  type: 'line',
+  data: {
+    labels: plies,
+    datasets: [
+      {
+        label: 'Raw (32 blocks as distinct)',
+        data: ogRaw,
+        borderColor: colors.muted,
+        backgroundColor: colors.muted + '22',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 1.5,
+      },
+      {
+        label: 'Deduplicated (5 types, flip-collapsed)',
+        data: ogEff,
+        borderColor: colors.accent2,
+        backgroundColor: colors.accent2 + '22',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 2,
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } } },
+    scales: {
+      x: { title: { display: true, text: 'Ply' } },
+      y: { title: { display: true, text: 'Legal Moves' }, type: 'logarithmic', min: 1, max: 10000 }
+    }
+  }
+});
+
+// 6. Solvability frontier
+const solveData = [
+  { name: 'Tic-Tac-Toe',    ss: 3,   gt: 5,   solved: true,      year: 1972 },
+  { name: 'Quarto',          ss: 10,  gt: 17,  solved: true,      year: 1998 },
+  { name: 'Nine Men\'s M.',  ss: 10,  gt: 50,  solved: true,      year: 1993 },
+  { name: 'Connect Four',    ss: 14,  gt: 21,  solved: true,      year: 1988 },
+  { name: 'Checkers',        ss: 21,  gt: 31,  solved: true,      year: 2007 },
+  { name: 'Othello',         ss: 28,  gt: 58,  solved: 'partial', year: 2023 },
+  { name: 'Blocko Std',      ss: 20,  gt: 57,  solved: false,     blocko: true },
+  { name: 'Blocko OG',       ss: 20,  gt: 59,  solved: false,     blocko: true },
+  { name: 'Chess',           ss: 44,  gt: 123, solved: false },
+  { name: 'Shogi',           ss: 71,  gt: 226, solved: false },
+  { name: 'Go',              ss: 171, gt: 360, solved: false },
+];
+
+function solveColor(g) {
+  if (g.blocko) return colors.accent;
+  if (g.solved === true) return colors.green;
+  if (g.solved === 'partial') return colors.orange;
+  return colors.accent2;
+}
+
+new Chart(document.getElementById('solvabilityChart'), {
+  type: 'scatter',
+  data: {
+    datasets: solveData.map(g => ({
+      label: g.name,
+      data: [{ x: g.ss, y: g.gt }],
+      backgroundColor: solveColor(g) + 'aa',
+      borderColor: g.blocko ? colors.accent2 : solveColor(g),
+      borderWidth: g.blocko ? 3 : 1.5,
+      pointRadius: g.blocko ? 9 : 7,
+      pointStyle: g.solved === true ? 'circle' : (g.blocko ? 'star' : 'triangle'),
+    }))
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const g = solveData[ctx.datasetIndex];
+            const status = g.solved === true ? 'Solved' : g.solved === 'partial' ? 'Claimed solved' : 'Unsolved';
+            return `${g.name}: SS=10^${g.ss}, GT=10^${g.gt} (${status})`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: 'State-Space Complexity (log₁₀)' }, min: 0 },
+      y: { title: { display: true, text: 'Game Tree Complexity (log₁₀)' }, min: 0 }
+    }
+  },
+  plugins: [{
+    afterDraw(chart) {
+      const ctx2 = chart.ctx;
+      ctx2.save();
+
+      // Draw solvability frontier zone
+      const xScale = chart.scales.x;
+      const yScale = chart.scales.y;
+
+      // Shaded "solved zone"
+      const x0 = xScale.getPixelForValue(0);
+      const x1 = xScale.getPixelForValue(30);
+      const y0 = yScale.getPixelForValue(0);
+      const y1 = yScale.getPixelForValue(60);
+      ctx2.fillStyle = 'rgba(6,214,160,0.04)';
+      ctx2.fillRect(x0, y1, x1 - x0, y0 - y1);
+      ctx2.strokeStyle = 'rgba(6,214,160,0.2)';
+      ctx2.setLineDash([6,4]);
+      ctx2.strokeRect(x0, y1, x1 - x0, y0 - y1);
+      ctx2.setLineDash([]);
+
+      // Label
+      ctx2.font = '11px Inter, sans-serif';
+      ctx2.fillStyle = 'rgba(6,214,160,0.5)';
+      ctx2.fillText('Current solvability frontier', x0 + 8, y1 + 16);
+
+      // Game labels
+      ctx2.font = '10px Inter, sans-serif';
+      chart.data.datasets.forEach((ds, i) => {
+        const meta = chart.getDatasetMeta(i);
+        if (meta.data[0]) {
+          const { x, y } = meta.data[0];
+          const g = solveData[i];
+          ctx2.fillStyle = g.blocko ? colors.accent : colors.text + 'aa';
+          ctx2.textAlign = 'center';
+          ctx2.fillText(g.name, x, y - 14);
+        }
+      });
+      ctx2.restore();
+    }
+  }]
+});
+</script>
+</body>
+</html>
